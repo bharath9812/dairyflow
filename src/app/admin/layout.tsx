@@ -52,6 +52,45 @@ export default async function AdminLayout({ children }: { children: React.ReactN
 
         {/* Dynamic Content Window */}
         <div className="flex-1 w-full min-w-0">
+          
+          {/* Mobile Navigation Row (Hidden on Desktop) */}
+          <div className="grid grid-cols-4 lg:hidden gap-2 sm:gap-4 mb-8">
+            <Link href="/admin" className="flex flex-col items-center justify-center gap-2 bg-white border border-slate-200 p-3 rounded-2xl shadow-sm hover:border-blue-300 transition-all text-center">
+              <div className="w-10 h-10 rounded-full bg-blue-50 flex items-center justify-center">
+                <TrendingUp className="w-5 h-5 text-blue-600" />
+              </div>
+              <span className="text-[9px] sm:text-[10px] uppercase font-bold text-slate-600">Analytics</span>
+            </Link>
+            
+            <Link href="/admin/profile" className="flex flex-col items-center justify-center gap-2 bg-white border border-slate-200 p-3 rounded-2xl shadow-sm hover:border-blue-300 transition-all text-center">
+              <div className="w-10 h-10 rounded-full bg-slate-50 flex items-center justify-center">
+                <UserCog className="w-5 h-5 text-slate-600" />
+              </div>
+              <span className="text-[9px] sm:text-[10px] uppercase font-bold text-slate-600">Profile</span>
+            </Link>
+
+            <Link href="/admin/employees" className="flex flex-col items-center justify-center gap-2 bg-white border border-slate-200 p-3 rounded-2xl shadow-sm hover:border-blue-300 transition-all text-center">
+              <div className="w-10 h-10 rounded-full bg-slate-50 flex items-center justify-center">
+                <Users className="w-5 h-5 text-slate-600" />
+              </div>
+              <span className="text-[9px] sm:text-[10px] uppercase font-bold text-slate-600">Staff</span>
+            </Link>
+
+            <form action={async () => {
+              'use server';
+              const s = await createClient()
+              await s.auth.signOut()
+              redirect('/login')
+            }} className="flex flex-col">
+              <button className="flex flex-col flex-1 items-center justify-center gap-2 bg-white border border-slate-200 p-3 rounded-2xl shadow-sm hover:border-rose-300 hover:bg-rose-50 transition-all text-center w-full">
+                <div className="w-10 h-10 rounded-full bg-rose-50 flex items-center justify-center">
+                  <LogOut className="w-5 h-5 text-rose-500" />
+                </div>
+                <span className="text-[9px] sm:text-[10px] uppercase font-bold text-rose-600">Exit</span>
+              </button>
+            </form>
+          </div>
+
           {children}
         </div>
 
