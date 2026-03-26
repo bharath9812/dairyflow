@@ -100,33 +100,44 @@ export default function TransactionDashboard() {
       
       {/* Top Navigation */}
       <header className="bg-white border-b border-slate-200 px-6 lg:px-10 py-4 flex items-center justify-between sticky top-0 z-20 shadow-sm">
-        <div className="flex items-center gap-2">
+        <Link href="/" className="flex items-center gap-2 hover:opacity-80 transition-opacity">
            <div className="bg-blue-600 p-2 rounded-lg text-white shadow-sm">
              <Droplets className="w-5 h-5" />
            </div>
-           <Link href="/" className="text-xl font-bold tracking-tight text-slate-800 hidden sm:block">
+           <div className="text-xl font-bold tracking-tight text-slate-800 hidden sm:block">
              DairyFlow<span className="text-blue-600 text-2xl leading-none">.</span>
-           </Link>
-        </div>
+           </div>
+        </Link>
         <div className="flex items-center gap-6 text-sm font-semibold">
-            <div className="flex items-center gap-3">
+            <div className="flex items-center gap-2 sm:gap-3">
+              {/* Desktop links */}
               <Link href="/customers" className="hidden sm:flex items-center gap-2 text-sm font-semibold text-slate-700 bg-white hover:bg-slate-50 border border-slate-200 px-4 py-2 rounded-xl transition-all shadow-sm">
                 <Users className="w-4 h-4 text-blue-500" /> Sellers Directory
               </Link>
               <Link href="/admin" className="hidden sm:flex items-center gap-2 text-sm font-semibold text-white bg-slate-900 hover:bg-slate-800 px-4 py-2 rounded-xl transition-all shadow-sm">
                 <ShieldCheck className="w-4 h-4" /> Admin Page
               </Link>
+              
+              {/* Mobile icon links */}
+              <Link href="/customers" className="sm:hidden flex items-center justify-center bg-white border border-slate-200 w-10 h-10 rounded-lg text-slate-600 shadow-sm active:bg-slate-50 transition-colors">
+                <Users className="w-5 h-5 text-blue-500" />
+              </Link>
+              <Link href="/admin" className="sm:hidden flex items-center justify-center bg-slate-900 w-10 h-10 rounded-lg text-white shadow-sm active:bg-slate-800 transition-colors">
+                <ShieldCheck className="w-5 h-5" />
+              </Link>
             </div>
            <span suppressHydrationWarning className="text-slate-500 hidden md:block">
              {new Date().toLocaleDateString(undefined, { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}
            </span>
            <div className="w-px h-6 bg-slate-200 hidden md:block"></div>
-           <button 
-             onClick={async () => { await supabase.auth.signOut(); router.push('/login') }}
-             className="flex items-center gap-2 text-red-600 hover:text-red-700 bg-red-50 hover:bg-red-100 px-3 py-1.5 rounded-lg transition-colors font-bold"
-           >
-             <LogOut className="w-4 h-4" /> Log Out
-           </button>
+            <button 
+              onClick={async () => { await supabase.auth.signOut(); router.push('/login') }}
+              className="flex items-center justify-center gap-2 text-red-600 hover:text-red-700 bg-red-50 hover:bg-red-100 px-3 py-1.5 sm:px-3 sm:py-1.5 h-10 sm:h-auto rounded-lg transition-colors font-bold"
+            >
+              <LogOut className="w-4 h-4 hidden sm:block" />
+              <LogOut className="w-5 h-5 sm:hidden" />
+              <span className="hidden sm:block">Log Out</span>
+            </button>
         </div>
       </header>
 
