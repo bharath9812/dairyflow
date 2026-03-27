@@ -77,21 +77,29 @@ export async function GET(request: Request) {
 
   if (format === 'csv') {
     const headerParts = []
+    if (!hiddenCols.includes('col_sno')) headerParts.push('S.No')
     if (!hiddenCols.includes('col_date')) headerParts.push('Transaction Date', 'Shift')
     if (!hiddenCols.includes('col_seller')) headerParts.push('Seller ID', 'Seller Name')
     if (!hiddenCols.includes('col_type')) headerParts.push('Milk Type')
     if (!hiddenCols.includes('col_volume')) headerParts.push('Quantity (L)')
     if (!hiddenCols.includes('col_capital')) headerParts.push('Rate (INR)', 'Total Price (INR)')
+    if (!hiddenCols.includes('col_audit')) headerParts.push('Audit Trail')
 
     const csvContent = [
       headerParts.join(','),
-      ...data.map(tx => {
+      ...data.map((tx, index) => {
         const rowParts = []
+        if (!hiddenCols.includes('col_sno')) rowParts.push(index + 1)
         if (!hiddenCols.includes('col_date')) rowParts.push(tx.transaction_date, tx.shift)
         if (!hiddenCols.includes('col_seller')) rowParts.push(String(tx.customers?.seller_id).padStart(3, '0'), `"${tx.customers?.name || 'Unknown'}"`)
         if (!hiddenCols.includes('col_type')) rowParts.push(tx.milk_type)
         if (!hiddenCols.includes('col_volume')) rowParts.push(tx.quantity_litres)
         if (!hiddenCols.includes('col_capital')) rowParts.push(tx.price_per_litre, tx.total_price)
+        if (!hiddenCols.includes('col_audit')) {
+          const creation = `C: ${tx.created_by_name || 'Admin'} (${new Date(tx.created_at).toLocaleDateString()})`
+          const update = tx.updated_at ? ` | U: ${tx.updated_by_name || 'Admin'} (${new Date(tx.updated_at).toLocaleDateString()})` : ''
+          rowParts.push(`"${creation}${update}"`)
+        }
         return rowParts.join(',')
       })
     ].join('\n')

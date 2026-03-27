@@ -60,21 +60,18 @@ export default function ExportButtons({ timeframe, exactDate, exactMonth, shift,
       doc.text(`Search Query: ${search || 'None'}`, 100, 52)
 
       // 3. Table Generation
-      const allCols = [
-        { key: 'col_date', label: 'Date' },
-        { key: 'col_date', label: 'Shift' },
-        { key: 'col_seller', label: 'Seller ID' },
-        { key: 'col_seller', label: 'Name' },
-        { key: 'col_type', label: 'Type' },
-        { key: 'col_volume', label: 'Volume (L)' },
-        { key: 'col_capital', label: 'Rate' },
-        { key: 'col_capital', label: 'Total (INR)' }
-      ]
-      
-      const tableColumn = allCols.filter(c => !hiddenCols.includes(c.key)).map(c => c.label)
+      const tableColumn = []
+      if (!hiddenCols.includes('col_sno')) tableColumn.push('S.No')
+      if (!hiddenCols.includes('col_date')) tableColumn.push('Date', 'Shift')
+      if (!hiddenCols.includes('col_seller')) tableColumn.push('Seller ID', 'Name')
+      if (!hiddenCols.includes('col_type')) tableColumn.push('Type')
+      if (!hiddenCols.includes('col_volume')) tableColumn.push('Volume (L)')
+      if (!hiddenCols.includes('col_capital')) tableColumn.push('Rate', 'Total (INR)')
+      if (!hiddenCols.includes('col_audit')) tableColumn.push('Audit Trail')
 
-      const tableRows = json.data.map((tx: any) => {
-        const row = []
+      const tableRows = json.data.map((tx: any, index: number) => {
+        const row: any[] = []
+        if (!hiddenCols.includes('col_sno')) row.push(index + 1)
         if (!hiddenCols.includes('col_date')) {
           row.push(new Date(tx.transaction_date).toLocaleDateString('en-GB'))
           row.push(tx.shift)
@@ -92,6 +89,13 @@ export default function ExportButtons({ timeframe, exactDate, exactMonth, shift,
         if (!hiddenCols.includes('col_capital')) {
           row.push(Number(tx.price_per_litre).toFixed(2))
           row.push(Number(tx.total_price).toFixed(2))
+        }
+        if (!hiddenCols.includes('col_audit')) {
+          let auditStr = `C: ${tx.created_by_name || 'Admin'} (${new Date(tx.created_at).toLocaleDateString()})`
+          if (tx.updated_at) {
+            auditStr += `\nU: ${tx.updated_by_name || 'Admin'} (${new Date(tx.updated_at).toLocaleDateString()})`
+          }
+          row.push(auditStr)
         }
         return row
       })

@@ -18,7 +18,7 @@ export default async function AdminDashboardPage(props: { searchParams: Promise<
   const hiddenCols = searchParams?.hiddenCols?.split(',') || []
   
   const page = parseInt(searchParams?.page || '1', 10)
-  const limit = 50
+  const limit = 10
   const offset = (page - 1) * limit
 
   // Fire parallel queries to Supabase
@@ -102,6 +102,7 @@ export default async function AdminDashboardPage(props: { searchParams: Promise<
               <table className="w-full text-left text-sm whitespace-nowrap">
                 <thead className="bg-slate-50/80 text-slate-500 font-bold uppercase text-[10px] tracking-wider sticky top-0 z-10">
                   <tr>
+                    {!hiddenCols.includes('col_sno') && <th className="px-4 py-4 border-b border-slate-200 text-center">S.No</th>}
                     {!hiddenCols.includes('col_tx_id') && <th className="px-6 py-4 border-b border-slate-200">Tx ID</th>}
                     {!hiddenCols.includes('col_date') && <th className="px-6 py-4 border-b border-slate-200">Date & Temp</th>}
                     {!hiddenCols.includes('col_seller') && <th className="px-6 py-4 border-b border-slate-200">Seller Entity</th>}
@@ -109,19 +110,24 @@ export default async function AdminDashboardPage(props: { searchParams: Promise<
                     {!hiddenCols.includes('col_volume') && <th className="px-6 py-4 border-b border-slate-200 text-right">Volume</th>}
                     {!hiddenCols.includes('col_capital') && <th className="px-6 py-4 border-b border-slate-200 text-right">Capital Out</th>}
                     {!hiddenCols.includes('col_audit') && <th className="px-6 py-4 border-b border-slate-200 text-left">Audit Footprint</th>}
-                    <th className="px-4 py-4 border-b border-slate-200"></th>
+                    <th className="px-4 py-4 border-b border-slate-200 text-right">Actions</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100">
                   {txData.data?.length === 0 ? (
                     <tr>
-                      <td colSpan={6} className="px-6 py-12 text-center text-slate-400 font-medium bg-slate-50/30">
+                      <td colSpan={9} className="px-6 py-12 text-center text-slate-400 font-medium bg-slate-50/30">
                         No transaction metrics found for this scope.
                       </td>
                     </tr>
                   ) : (
-                    txData.data?.map(tx => (
+                    txData.data?.map((tx, index) => (
                       <tr key={tx.id} className="hover:bg-slate-50 transition-colors">
+                        {!hiddenCols.includes('col_sno') && (
+                          <td className="px-4 py-4 text-center text-slate-400 font-mono text-xs">
+                            {offset + index + 1}
+                          </td>
+                        )}
                         {!hiddenCols.includes('col_tx_id') && (
                           <td className="px-6 py-4">
                             <span className="font-mono text-slate-400 text-xs">{tx.id.split('-')[0]}</span>
@@ -191,20 +197,23 @@ export default async function AdminDashboardPage(props: { searchParams: Promise<
 
             {/* Table Pagination Bounds */}
             {totalPages > 1 && (
-              <div className="bg-slate-50 border-t border-slate-100 px-6 py-4 flex items-center justify-between">
-                <div className="text-xs font-bold text-slate-500">
-                  Viewing Output {page} of {totalPages}
-                </div>
-                <div className="flex gap-2">
+              <div className="bg-white border-t border-slate-200 p-4 shrink-0 flex items-center justify-between">
+                <span className="text-xs font-semibold text-slate-500">
+                  Showing {offset + 1}-{Math.min(offset + limit, txData.count || 0)} of {txData.count}
+                </span>
+                <div className="flex items-center gap-1.5">
                   <Link 
                     href={`/admin?timeframe=${timeframe}&exactDate=${exactDate}&exactMonth=${exactMonth}&shift=${shift}&milkType=${milkType}&minQty=${minQty}&search=${encodeURIComponent(search)}&hideTable=${hideTable}&hiddenCols=${hiddenCols.join(',')}&page=${Math.max(1, page - 1)}`}
-                    className={`p-2 rounded-lg border ${page === 1 ? 'border-slate-200 text-slate-300 pointer-events-none' : 'border-slate-300 text-slate-600 hover:bg-white bg-slate-100 transition-colors'}`}
+                    className={`p-1.5 rounded-md border ${page === 1 ? 'border-slate-200 text-slate-300 pointer-events-none' : 'border-slate-200 text-slate-500 hover:text-blue-600 hover:bg-blue-50 transition-colors'}`}
                   >
                     <ChevronLeft className="w-4 h-4" />
                   </Link>
+                  <div className="text-xs font-medium text-slate-600 px-2">
+                    {page} <span className="text-slate-300 mx-0.5">/</span> {totalPages}
+                  </div>
                   <Link 
                     href={`/admin?timeframe=${timeframe}&exactDate=${exactDate}&exactMonth=${exactMonth}&shift=${shift}&milkType=${milkType}&minQty=${minQty}&search=${encodeURIComponent(search)}&hideTable=${hideTable}&hiddenCols=${hiddenCols.join(',')}&page=${Math.min(totalPages, page + 1)}`}
-                    className={`p-2 rounded-lg border ${page === totalPages ? 'border-slate-200 text-slate-300 pointer-events-none' : 'border-slate-300 text-slate-600 hover:bg-white bg-slate-100 transition-colors'}`}
+                    className={`p-1.5 rounded-md border ${page === totalPages ? 'border-slate-200 text-slate-300 pointer-events-none' : 'border-slate-200 text-slate-500 hover:text-blue-600 hover:bg-blue-50 transition-colors'}`}
                   >
                     <ChevronRight className="w-4 h-4" />
                   </Link>

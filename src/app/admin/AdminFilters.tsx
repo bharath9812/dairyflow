@@ -42,6 +42,23 @@ export default function AdminFilters() {
     router.push(`/admin?${params.toString()}`)
   }
 
+  // Persistent Preferences
+  useEffect(() => {
+    const saved = localStorage.getItem('dairyflow_admin_hidden_cols')
+    // Only restore if the URL doesn't already have specific column overrides
+    if (saved && !searchParams.get('hiddenCols')) {
+      setHiddenCols(saved.split(','))
+    }
+  }, [])
+
+  useEffect(() => {
+    if (hiddenCols.length > 0) {
+      localStorage.setItem('dairyflow_admin_hidden_cols', hiddenCols.join(','))
+    } else {
+      localStorage.removeItem('dairyflow_admin_hidden_cols')
+    }
+  }, [hiddenCols])
+
   // Trigger whenever a dropdown changes
   useEffect(() => {
     triggerUpdate()
@@ -196,6 +213,7 @@ export default function AdminFilters() {
             
             <div className="flex flex-wrap items-center gap-2">
               {[
+                { key: 'col_sno', label: 'S.No' },
                 { key: 'col_tx_id', label: 'Tx ID' },
                 { key: 'col_date', label: 'Date/Shift' },
                 { key: 'col_seller', label: 'Seller' },

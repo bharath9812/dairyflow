@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect } from 'react'
 import { useParams, useRouter } from 'next/navigation'
-import { ArrowLeft, User, Phone, MapPin, Save, Droplets, TrendingUp, Calendar, CalendarDays, Activity, Loader2, FileDown, LogOut, Pencil } from 'lucide-react'
+import { ArrowLeft, User, Phone, MapPin, Save, Droplets, TrendingUp, Calendar, CalendarDays, Activity, Loader2, FileDown, LogOut, Pencil, ChevronLeft, ChevronRight } from 'lucide-react'
 import Link from 'next/link'
 import { createClient } from '@/utils/supabase/client'
 import { updateCustomerDetails } from './actions'
@@ -30,6 +30,10 @@ export default function CustomerAnalyticsPage() {
     const now = new Date()
     return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`
   })
+  
+  // Pagination State
+  const [currentPage, setCurrentPage] = useState(1)
+  const itemsPerPage = 10
 
   // Computed Stats
   const [totalSales, setTotalSales] = useState(0)
@@ -52,7 +56,8 @@ export default function CustomerAnalyticsPage() {
 
       if (txs) {
         setTransactions(txs)
-
+        setCurrentPage(1) // Reset page on ID change
+        
         // Compute Analytics
         let tSales = 0
         let mSales = 0
@@ -173,23 +178,30 @@ export default function CustomerAnalyticsPage() {
       let totFatSum = 0
       let totAmt = 0
 
-      const bodyData = filteredTxs.map(tx => {
+      const bodyData = filteredTxs.map((tx, index) => {
         const q = Number(tx.quantity_litres)
         const f = Number(tx.fat_percentage)
         const a = Number(tx.total_price)
 
         totQty += q
-        totFatSum += (f * q) // To calculate true weighted average fat %
+        totFatSum += (f * q) 
         totAmt += a
 
+        let auditStr = `C: ${tx.created_by_name || 'Admin'} (${new Date(tx.created_at).toLocaleDateString()})`
+        if (tx.updated_at) {
+          auditStr += `\nU: ${tx.updated_by_name || 'Admin'} (${new Date(tx.updated_at).toLocaleDateString()})`
+        }
+
         return [
+          index + 1,
           new Date(tx.transaction_date).toLocaleDateString('en-GB'),
           tx.shift === 'Morning' ? 'M' : 'E',
           tx.milk_type === 'Cow' ? 'Cow' : 'Buffalo',
           q.toFixed(2),
           f.toFixed(2),
           Number(tx.price_per_litre).toFixed(2),
-          a.toFixed(2)
+          a.toFixed(2),
+          auditStr
         ]
       })
 
@@ -197,33 +209,38 @@ export default function CustomerAnalyticsPage() {
       autoTable(doc, {
         startY: 80,
         head: [[
+          { content: 'S.NO', styles: { halign: 'center' } },
           { content: 'DATE', styles: { halign: 'center' } },
           { content: 'SHIFT', styles: { halign: 'center' } },
           { content: 'TYPE', styles: { halign: 'center' } },
           { content: 'QTY (L)', styles: { halign: 'right' } },
           { content: 'FAT %', styles: { halign: 'right' } },
           { content: 'RATE (Rs)', styles: { halign: 'right' } },
-          { content: 'NET AMT (Rs)', styles: { halign: 'right' } }
+          { content: 'NET AMT (Rs)', styles: { halign: 'right' } },
+          { content: 'AUDIT', styles: { halign: 'left' } }
         ]],
         body: bodyData,
         foot: [[
-          'TOTAL:', '', '',
+          'TOTAL:', '', '', '',
           { content: totQty.toFixed(2), styles: { halign: 'right' } },
           '', '', // Leave fat and rate col empty in total row
-          { content: totAmt.toFixed(2), styles: { halign: 'right' } }
+          { content: totAmt.toFixed(2), styles: { halign: 'right' } },
+          ''
         ]],
         theme: 'plain',
         styles: { fontSize: 8, cellPadding: 2.5, textColor: [0, 0, 0] },
         headStyles: { fontStyle: 'bold', lineWidth: { top: 0.5, bottom: 0.5 }, lineColor: [0, 0, 0] },
         footStyles: { fontStyle: 'bold', lineWidth: { top: 0.5, bottom: 0.5 }, lineColor: [0, 0, 0] },
         columnStyles: {
-          0: { halign: 'center' },
+          0: { halign: 'center', cellWidth: 12 },
           1: { halign: 'center' },
-          2: { halign: 'center' },
-          3: { halign: 'right' },
+          2: { halign: 'center', cellWidth: 15 },
+          3: { halign: 'center' },
           4: { halign: 'right' },
           5: { halign: 'right' },
-          6: { halign: 'right' }
+          6: { halign: 'right' },
+          7: { halign: 'right' },
+          8: { halign: 'left', cellWidth: 35 }
         }
       })
 
@@ -441,20 +458,25 @@ export default function CustomerAnalyticsPage() {
               <table className="min-w-full text-left text-sm whitespace-nowrap">
                 <thead className="bg-slate-50 sticky top-0 border-b border-slate-200 z-10">
                   <tr>
+                    <th className="px-3 py-4 font-bold text-slate-500 uppercase tracking-wider text-[11px] text-center">S.No</th>
                     <th className="px-6 py-4 font-bold text-slate-500 uppercase tracking-wider text-[11px]">Transaction Date</th>
                     <th className="px-5 py-4 font-bold text-slate-500 uppercase tracking-wider text-[11px]">Milk Details</th>
                     <th className="px-5 py-4 font-bold text-slate-500 uppercase tracking-wider text-[11px] text-right">Price (/kg)</th>
                     <th className="px-6 py-4 font-bold text-slate-500 uppercase tracking-wider text-[11px] text-right">Total Net (₹)</th>
+                    <th className="px-5 py-4 font-bold text-slate-500 uppercase tracking-wider text-[11px]">Audit</th>
                     <th className="px-4 py-4 border-b border-slate-200"></th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100">
                   {transactions.length === 0 ? (
                     <tr>
-                      <td colSpan={4} className="px-6 py-16 text-center text-slate-400 font-medium">No historical transactions logged for this specified seller.</td>
+                      <td colSpan={7} className="px-6 py-16 text-center text-slate-400 font-medium">No historical transactions logged for this specified seller.</td>
                     </tr>
-                  ) : transactions.map((tx) => (
+                  ) : transactions.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage).map((tx, index) => (
                     <tr key={tx.id} className="hover:bg-slate-50/80 transition-colors">
+                      <td className="px-3 py-4 text-center text-slate-400 font-mono text-[11px]">
+                        {(currentPage - 1) * itemsPerPage + index + 1}
+                      </td>
                       <td className="px-6 py-4">
                         <div className="font-bold text-slate-800">{new Date(tx.transaction_date).toLocaleDateString()}</div>
                         <div className="text-xs text-slate-400 font-medium">{new Date(tx.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</div>
@@ -474,6 +496,14 @@ export default function CustomerAnalyticsPage() {
                       <td className="px-6 py-4 text-right font-black text-slate-800 text-base">
                         ₹{Number(tx.total_price).toFixed(2)}
                       </td>
+                      <td className="px-5 py-4">
+                        <div className="text-[10px] text-slate-500 font-medium whitespace-normal min-w-[120px]">
+                          <div>C: {tx.created_by_name || 'Admin'}</div>
+                          {tx.updated_at && (
+                            <div className="text-indigo-500 mt-0.5">U: {tx.updated_by_name || 'Admin'}</div>
+                          )}
+                        </div>
+                      </td>
                       <td className="px-4 py-4 text-right">
                         <button onClick={() => setEditingTx(tx)} className="p-2 text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg transition-colors group">
                           <Pencil className="w-4 h-4 group-hover:scale-110 transition-transform" />
@@ -485,6 +515,34 @@ export default function CustomerAnalyticsPage() {
               </table>
             </div>
 
+            {/* Pagination Banner */}
+            <div className="bg-white border-t border-slate-200 p-4 shrink-0 flex items-center justify-between">
+              <span className="text-xs font-semibold text-slate-500">
+                {transactions.length > 0 
+                  ? `Showing ${(currentPage - 1) * itemsPerPage + 1}-${Math.min(currentPage * itemsPerPage, transactions.length)} of ${transactions.length}`
+                  : '0 logs'
+                }
+              </span>
+              <div className="flex items-center gap-1.5">
+                <button 
+                  disabled={currentPage === 1}
+                  onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
+                  className="p-1.5 rounded-md border border-slate-200 text-slate-500 hover:text-blue-600 hover:bg-blue-50 disabled:opacity-40 transition-colors cursor-pointer"
+                >
+                  <ChevronLeft className="w-4 h-4" />
+                </button>
+                <div className="text-xs font-medium text-slate-600 px-2">
+                  {currentPage} <span className="text-slate-300 mx-0.5">/</span> {Math.max(1, Math.ceil(transactions.length / itemsPerPage))}
+                </div>
+                <button 
+                  disabled={currentPage === Math.ceil(transactions.length / itemsPerPage) || transactions.length === 0}
+                  onClick={() => setCurrentPage(p => Math.min(Math.ceil(transactions.length / itemsPerPage), p + 1))}
+                  className="p-1.5 rounded-md border border-slate-200 text-slate-500 hover:text-blue-600 hover:bg-blue-50 disabled:opacity-40 transition-colors cursor-pointer"
+                >
+                  <ChevronRight className="w-4 h-4" />
+                </button>
+              </div>
+            </div>
           </div>
 
         </div>

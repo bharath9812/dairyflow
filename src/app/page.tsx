@@ -353,7 +353,8 @@ export default function TransactionDashboard() {
                <table className="w-full text-left text-sm whitespace-nowrap">
                  <thead className="bg-slate-50 sticky top-0 border-b border-slate-200 z-10">
                    <tr>
-                     <th className="px-5 py-4 font-bold text-slate-600 uppercase tracking-wider text-[11px]">Time</th>
+                     <th className="px-3 py-4 font-bold text-slate-600 uppercase tracking-wider text-[11px] text-center">S.No</th>
+                      <th className="px-5 py-4 font-bold text-slate-600 uppercase tracking-wider text-[11px]">Time</th>
                      <th className="px-4 py-4 font-bold text-slate-600 uppercase tracking-wider text-[11px]">Seller Name</th>
                      <th className="px-4 py-4 font-bold text-slate-600 uppercase tracking-wider text-[11px] text-right">Data</th>
                      <th className="px-5 py-4 font-bold text-slate-600 uppercase tracking-wider text-[11px] text-right">Total (₹)</th>
@@ -363,11 +364,14 @@ export default function TransactionDashboard() {
                  <tbody className="divide-y divide-slate-100">
                    {paginatedTx.length === 0 ? (
                      <tr>
-                        <td colSpan={4} className="px-6 py-12 text-center text-slate-400 font-medium">No transactions recorded yet today.</td>
+                        <td colSpan={6} className="px-6 py-12 text-center text-slate-400 font-medium">No transactions recorded yet today.</td>
                      </tr>
-                   ) : paginatedTx.map((tx) => (
+                   ) : paginatedTx.map((tx, index) => (
                      <tr key={tx.id} className="hover:bg-slate-50/80 transition-colors">
-                       <td className="px-5 py-4 text-slate-500 text-xs">
+                       <td className="px-3 py-4 text-center text-slate-400 font-mono text-[11px]">
+                          {(currentPage - 1) * itemsPerPage + index + 1}
+                        </td>
+                        <td className="px-5 py-4 text-slate-500 text-xs">
                           {new Date(tx.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                        </td>
                        <td className="px-4 py-4 font-medium text-slate-800">
