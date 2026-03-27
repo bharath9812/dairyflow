@@ -91,7 +91,8 @@ export default function TransactionDashboard() {
       total_price: totalPrice,
       created_by: sessionUser?.id,
       updated_by: sessionUser?.id,
-      updated_by_name: sessionUser?.name || 'Admin'
+      updated_by_name: sessionUser?.name || 'Admin',
+      created_by_name: sessionUser?.name || 'Admin'
     }
 
     const { data, error } = await supabase.from('transactions').insert([newTx]).select('*, customers(name)').single()

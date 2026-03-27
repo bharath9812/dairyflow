@@ -173,9 +173,9 @@ export default async function AdminDashboardPage(props: { searchParams: Promise<
                         )}
                         {!hiddenCols.includes('col_audit') && (
                           <td className="px-6 py-4">
-                            <div className="text-[10px] text-slate-500 font-medium">C: {new Date(tx.created_at).toLocaleString([], { dateStyle: 'short', timeStyle: 'short' })}</div>
-                            {tx.updated_by_name && (
-                              <div className="text-[10px] text-indigo-500 font-medium mt-0.5">U: {tx.updated_by_name} ({new Date(tx.updated_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })})</div>
+                            <div className="text-[10px] text-slate-500 font-medium">C: {tx.created_by_name || 'Admin'} ({new Date(tx.created_at).toLocaleString([], { dateStyle: 'short', timeStyle: 'short' })})</div>
+                            {tx.updated_at && (
+                              <div className="text-[10px] text-indigo-500 font-medium mt-0.5">U: {tx.updated_by_name || 'Admin'} ({new Date(tx.updated_at).toLocaleString([], { dateStyle: 'short', timeStyle: 'short' })})</div>
                             )}
                           </td>
                         )}
