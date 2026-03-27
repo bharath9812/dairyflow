@@ -5,10 +5,10 @@ import { Download, FileText, Loader2 } from 'lucide-react'
 import { jsPDF } from 'jspdf'
 import autoTable from 'jspdf-autotable'
 
-export default function ExportButtons({ timeframe, exactDate, exactMonth, shift, milkType, minQty, search, hiddenCols }: { timeframe: string, exactDate: string, exactMonth: string, shift: string, milkType: string, minQty: string, search: string, hiddenCols: string[] }) {
+export default function ExportButtons({ timeframe, exactDate, exactMonth, startDate, endDate, shift, milkType, minQty, qtyOp, search, hiddenCols }: { timeframe: string, exactDate: string, exactMonth: string, startDate?: string, endDate?: string, shift: string, milkType: string, minQty: string, qtyOp: string, search: string, hiddenCols: string[] }) {
   const [isExportingPDF, setIsExportingPDF] = useState(false)
 
-  const queryStr = `timeframe=${timeframe}&exactDate=${exactDate}&exactMonth=${exactMonth}&shift=${shift}&milkType=${milkType}&minQty=${minQty}&search=${encodeURIComponent(search)}&hiddenCols=${hiddenCols.join(',')}`
+  const queryStr = `timeframe=${timeframe}&exactDate=${exactDate}&exactMonth=${exactMonth}&startDate=${startDate}&endDate=${endDate}&shift=${shift}&milkType=${milkType}&minQty=${minQty}&qtyOp=${qtyOp}&search=${encodeURIComponent(search)}&hiddenCols=${hiddenCols.join(',')}`
 
   const downloadCSV = () => {
     window.open(`/api/export?${queryStr}&format=csv`, '_blank')
@@ -52,11 +52,13 @@ export default function ExportButtons({ timeframe, exactDate, exactMonth, shift,
       let timeLabel = timeframe
       if (timeframe === 'SPECIFIC_DATE') timeLabel = exactDate
       if (timeframe === 'SPECIFIC_MONTH') timeLabel = exactMonth
+      if (timeframe === 'CUSTOM_RANGE') timeLabel = `${startDate} to ${endDate}`
       
       doc.text(`Timeframe: ${timeLabel}`, 14, 46)
       doc.text(`Shift: ${shift}`, 14, 52)
       doc.text(`Commodity: ${milkType === 'ALL' ? 'Cow & Buffalo' : milkType}`, 14, 58)
-      doc.text(`Min Litres: ${minQty || '0'}`, 100, 46)
+      const qtyLabel = minQty ? `${qtyOp === 'eq' ? '=' : qtyOp === 'lt' ? '<' : '>'} ${minQty}L` : 'None'
+      doc.text(`Qty Filter: ${qtyLabel}`, 100, 46)
       doc.text(`Search Query: ${search || 'None'}`, 100, 52)
 
       // 3. Table Generation

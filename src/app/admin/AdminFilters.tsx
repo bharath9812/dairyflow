@@ -4,16 +4,20 @@ import { useRouter, useSearchParams } from 'next/navigation'
 import { Filter, Calendar, Sun, Moon, Activity, Search, Droplet, Hash, X, Eye, EyeOff, LayoutTemplate } from 'lucide-react'
 import { useState, useEffect } from 'react'
 
-export default function AdminFilters() {
+export default function AdminFilters({ currentYear }: { currentYear?: number }) {
+  const displayYear = currentYear || new Date().getFullYear()
   const router = useRouter()
   const searchParams = useSearchParams()
 
   const [timeframe, setTimeframe] = useState(searchParams.get('timeframe') || 'TODAY')
   const [exactDate, setExactDate] = useState(searchParams.get('exactDate') || '')
   const [exactMonth, setExactMonth] = useState(searchParams.get('exactMonth') || '')
+  const [startDate, setStartDate] = useState(searchParams.get('startDate') || '')
+  const [endDate, setEndDate] = useState(searchParams.get('endDate') || '')
   const [shift, setShift] = useState(searchParams.get('shift') || 'ALL')
   const [milkType, setMilkType] = useState(searchParams.get('milkType') || 'ALL')
   const [minQty, setMinQty] = useState(searchParams.get('minQty') || '')
+  const [qtyOp, setQtyOp] = useState(searchParams.get('qtyOp') || 'gt')
   const [search, setSearch] = useState(searchParams.get('search') || '')
   const [hideTable, setHideTable] = useState(searchParams.get('hideTable') === 'true')
   const [hiddenCols, setHiddenCols] = useState<string[]>(searchParams.get('hiddenCols') ? (searchParams.get('hiddenCols') as string).split(',') : [])
@@ -31,9 +35,14 @@ export default function AdminFilters() {
     if (timeframe !== 'TODAY') params.set('timeframe', timeframe)
     if (exactDate) params.set('exactDate', exactDate)
     if (exactMonth) params.set('exactMonth', exactMonth)
+    if (startDate) params.set('startDate', startDate)
+    if (endDate) params.set('endDate', endDate)
     if (shift !== 'ALL') params.set('shift', shift)
     if (milkType !== 'ALL') params.set('milkType', milkType)
-    if (minQty) params.set('minQty', minQty)
+    if (minQty) {
+      params.set('minQty', minQty)
+      params.set('qtyOp', qtyOp)
+    }
     if (search) params.set('search', search)
     if (hideTable) params.set('hideTable', 'true')
     if (hiddenCols.length > 0) params.set('hiddenCols', hiddenCols.join(','))
@@ -62,7 +71,7 @@ export default function AdminFilters() {
   // Trigger whenever a dropdown changes
   useEffect(() => {
     triggerUpdate()
-  }, [timeframe, exactDate, exactMonth, shift, milkType, minQty, hideTable, hiddenCols])
+  }, [timeframe, exactDate, exactMonth, startDate, endDate, shift, milkType, minQty, qtyOp, hideTable, hiddenCols])
 
   const toggleCol = (colKey: string) => {
     setHiddenCols(prev => prev.includes(colKey) ? prev.filter(c => c !== colKey) : [...prev, colKey])
@@ -86,12 +95,17 @@ export default function AdminFilters() {
               setTimeframe(e.target.value)
               if (e.target.value !== 'SPECIFIC_DATE') setExactDate('')
               if (e.target.value !== 'SPECIFIC_MONTH') setExactMonth('')
+              if (e.target.value !== 'CUSTOM_RANGE') {
+                setStartDate('')
+                setEndDate('')
+              }
             }}
             className="w-full appearance-none pl-10 pr-10 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm font-bold text-slate-700 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 cursor-pointer transition-all hover:bg-slate-100"
           >
             <option value="TODAY">Today's Tx</option>
             <option value="SPECIFIC_DATE">Specific Date...</option>
             <option value="SPECIFIC_MONTH">Specific Month...</option>
+            <option value="CUSTOM_RANGE">Custom Range...</option>
             <option value="MONTH_FIRST_HALF">1st-15th</option>
             <option value="MONTH_SECOND_HALF">16th-End</option>
             <option value="MONTHLY">Current Month</option>
@@ -122,11 +136,34 @@ export default function AdminFilters() {
             >
               <option value="">Select Month</option>
               {["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"].map((m, i) => {
-                const val = `${new Date().getFullYear()}-${String(i + 1).padStart(2, '0')}`
+                const val = `${displayYear}-${String(i + 1).padStart(2, '0')}`
                 return <option key={val} value={val}>{m}</option>
               })}
             </select>
             <div className="absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none text-slate-400 text-xs">▼</div>
+          </div>
+        )}
+
+        {timeframe === 'CUSTOM_RANGE' && (
+          <div className="flex flex-wrap items-center gap-2 animate-in fade-in zoom-in-95 duration-200">
+            <div className="relative">
+              <input 
+                type="date"
+                value={startDate}
+                onChange={(e) => setStartDate(e.target.value)}
+                className="pl-3 pr-2 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm font-bold text-slate-700 focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all shadow-sm"
+              />
+              <span className="absolute -top-2 left-3 bg-white px-1 text-[10px] text-slate-400 font-bold uppercase tracking-tighter">From</span>
+            </div>
+            <div className="relative">
+              <input 
+                type="date"
+                value={endDate}
+                onChange={(e) => setEndDate(e.target.value)}
+                className="pl-3 pr-2 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm font-bold text-slate-700 focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all shadow-sm"
+              />
+              <span className="absolute -top-2 left-3 bg-white px-1 text-[10px] text-slate-400 font-bold uppercase tracking-tighter">To</span>
+            </div>
           </div>
         )}
 
@@ -162,15 +199,24 @@ export default function AdminFilters() {
           <div className="absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none text-slate-400 text-xs">▼</div>
         </div>
 
-        {/* Min Quantity */}
-        <div className="relative flex-[1_1_160px]">
-          <Hash className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-emerald-500" />
+        {/* Quantity Filter */}
+        <div className="relative flex-[1_1_200px] flex items-center gap-1 bg-slate-50 border border-slate-200 rounded-xl px-2 h-[41px]">
+          <Hash className="w-4 h-4 text-emerald-500 shrink-0 ml-1" />
+          <select 
+            value={qtyOp}
+            onChange={(e) => setQtyOp(e.target.value)}
+            className="appearance-none bg-transparent text-sm font-black text-emerald-600 focus:outline-none cursor-pointer w-6 px-0"
+          >
+            <option value="gt">&gt;</option>
+            <option value="lt">&lt;</option>
+            <option value="eq">=</option>
+          </select>
           <input 
             type="number"
-            placeholder="Min Litres"
+            placeholder="Qty Filter"
             value={minQty}
             onChange={(e) => setMinQty(e.target.value)}
-            className="w-full pl-10 pr-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm font-bold text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:bg-white transition-all placeholder:text-slate-400 placeholder:font-medium"
+            className="w-full bg-transparent py-2 px-1 text-sm font-bold text-slate-800 focus:outline-none placeholder:text-slate-400 placeholder:font-medium"
           />
         </div>
 

@@ -3,16 +3,20 @@ import AdminFilters from './AdminFilters'
 import ExportButtons from './ExportButtons'
 import TransactionActionCell from '@/components/TransactionActionCell'
 import Link from 'next/link'
-import { ArrowLeft, Download, ShieldCheck, Users, Sun, Moon, Database, ChevronLeft, ChevronRight } from 'lucide-react'
+import { ArrowLeft, Download, ShieldCheck, Users, Sun, Moon, Database, ChevronLeft, ChevronRight, Loader2 } from 'lucide-react'
+import { Suspense } from 'react'
 
-export default async function AdminDashboardPage(props: { searchParams: Promise<{ timeframe?: string, shift?: string, milkType?: string, minQty?: string, search?: string, exactDate?: string, exactMonth?: string, hideTable?: string, hiddenCols?: string, page?: string }> }) {
+export default async function AdminDashboardPage(props: { searchParams: Promise<{ timeframe?: string, shift?: string, milkType?: string, minQty?: string, qtyOp?: string, search?: string, exactDate?: string, exactMonth?: string, startDate?: string, endDate?: string, hideTable?: string, hiddenCols?: string, page?: string }> }) {
   const searchParams = await props.searchParams
   const timeframe = searchParams?.timeframe || 'TODAY'
   const exactDate = searchParams?.exactDate || ''
   const exactMonth = searchParams?.exactMonth || ''
+  const startDate = searchParams?.startDate || ''
+  const endDate = searchParams?.endDate || ''
   const shift = searchParams?.shift || 'ALL'
   const milkType = searchParams?.milkType || 'ALL'
   const minQty = searchParams?.minQty || ''
+  const qtyOp = searchParams?.qtyOp || 'gt'
   const search = searchParams?.search || ''
   const hideTable = searchParams?.hideTable === 'true'
   const hiddenCols = searchParams?.hiddenCols?.split(',') || []
@@ -20,11 +24,12 @@ export default async function AdminDashboardPage(props: { searchParams: Promise<
   const page = parseInt(searchParams?.page || '1', 10)
   const limit = 10
   const offset = (page - 1) * limit
+  const currentYear = new Date().getFullYear()
 
   // Fire parallel queries to Supabase
   const [aggregates, txData] = await Promise.all([
-    fetchAdminAggregates({ timeframe, shift, milkType, minQty, search, exactDate, exactMonth }),
-    fetchAdminTransactions({ timeframe, shift, milkType, minQty, search, exactDate, exactMonth, limit, offset })
+    fetchAdminAggregates({ timeframe, shift, milkType, minQty, qtyOp, search, exactDate, exactMonth, startDate, endDate }),
+    fetchAdminTransactions({ timeframe, shift, milkType, minQty, qtyOp, search, exactDate, exactMonth, startDate, endDate, limit, offset })
   ])
 
   const totalPages = Math.ceil((txData.count ?? 0) / limit)
@@ -70,15 +75,25 @@ export default async function AdminDashboardPage(props: { searchParams: Promise<
 
         {/* Master Control Bar */}
         <div className="flex flex-col lg:flex-row gap-4 items-start lg:items-center justify-between">
-          <AdminFilters />
+          <Suspense fallback={
+            <div className="bg-white p-4 rounded-3xl border border-slate-200 w-full flex items-center justify-center animate-pulse min-h-[100px]">
+              <Loader2 className="w-5 h-5 text-blue-500 animate-spin mr-2" />
+              <span className="text-sm font-bold text-slate-400">Loading Filters...</span>
+            </div>
+          }>
+            <AdminFilters currentYear={currentYear} />
+          </Suspense>
           <div className="flex items-center gap-3 w-full lg:w-auto mt-4 lg:mt-0">
             <ExportButtons 
               timeframe={timeframe} 
               exactDate={exactDate}
               exactMonth={exactMonth}
+              startDate={startDate}
+              endDate={endDate}
               shift={shift} 
               milkType={milkType} 
               minQty={minQty} 
+              qtyOp={qtyOp}
               search={search}
               hiddenCols={hiddenCols}
             />

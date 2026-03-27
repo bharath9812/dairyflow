@@ -2,7 +2,7 @@
 
 import { createClient } from '@/utils/supabase/server'
 
-export async function fetchAdminTransactions(filters: { timeframe: string, shift: string, milkType?: string, minQty?: string, search?: string, exactDate?: string, exactMonth?: string, limit: number, offset: number }) {
+export async function fetchAdminTransactions(filters: { timeframe: string, shift: string, milkType?: string, minQty?: string, qtyOp?: string, search?: string, exactDate?: string, exactMonth?: string, startDate?: string, endDate?: string, limit: number, offset: number }) {
   const supabase = await createClient()
 
   let query = supabase
@@ -19,9 +19,10 @@ export async function fetchAdminTransactions(filters: { timeframe: string, shift
     query = query.eq('milk_type', filters.milkType)
   }
 
-  // Minimum Quantity Handling
+  // Quantity Filter Handling
   if (filters.minQty && Number(filters.minQty) > 0) {
-    query = query.gte('quantity_litres', Number(filters.minQty))
+    const op = filters.qtyOp === 'eq' ? 'eq' : filters.qtyOp === 'lt' ? 'lt' : 'gt'
+    query = query.filter('quantity_litres', op, filters.minQty)
   }
 
   // Seller Search Handling (Chained into the !inner customers join)
@@ -61,6 +62,8 @@ export async function fetchAdminTransactions(filters: { timeframe: string, shift
   } else if (filters.timeframe === 'MONTHLY') {
     const lastDay = new Date(year, month + 1, 0).getDate()
     query = query.gte('transaction_date', `${year}-${mm}-01`).lte('transaction_date', `${year}-${mm}-${String(lastDay).padStart(2, '0')}`)
+  } else if (filters.timeframe === 'CUSTOM_RANGE' && filters.startDate && filters.endDate) {
+    query = query.gte('transaction_date', filters.startDate).lte('transaction_date', filters.endDate)
   } else if (filters.timeframe === 'ALL_TIME') {
     // No date restriction
   }
@@ -81,7 +84,7 @@ export async function fetchAdminTransactions(filters: { timeframe: string, shift
   return { data, count }
 }
 
-export async function fetchAdminAggregates(filters: { timeframe: string, shift: string, milkType?: string, minQty?: string, search?: string, exactDate?: string, exactMonth?: string }) {
+export async function fetchAdminAggregates(filters: { timeframe: string, shift: string, milkType?: string, minQty?: string, qtyOp?: string, search?: string, exactDate?: string, exactMonth?: string, startDate?: string, endDate?: string }) {
   const supabase = await createClient()
 
   let query = supabase
@@ -93,9 +96,10 @@ export async function fetchAdminAggregates(filters: { timeframe: string, shift: 
     query = query.eq('milk_type', filters.milkType)
   }
 
-  // Minimum Quantity Handling
+  // Quantity Filter Handling
   if (filters.minQty && Number(filters.minQty) > 0) {
-    query = query.gte('quantity_litres', Number(filters.minQty))
+    const op = filters.qtyOp === 'eq' ? 'eq' : filters.qtyOp === 'lt' ? 'lt' : 'gt'
+    query = query.filter('quantity_litres', op, filters.minQty)
   }
 
   // Seller Search Handling (Chained into the !inner customers join)
@@ -135,6 +139,8 @@ export async function fetchAdminAggregates(filters: { timeframe: string, shift: 
   } else if (filters.timeframe === 'MONTHLY') {
     const lastDay = new Date(year, month + 1, 0).getDate()
     query = query.gte('transaction_date', `${year}-${mm}-01`).lte('transaction_date', `${year}-${mm}-${String(lastDay).padStart(2, '0')}`)
+  } else if (filters.timeframe === 'CUSTOM_RANGE' && filters.startDate && filters.endDate) {
+    query = query.gte('transaction_date', filters.startDate).lte('transaction_date', filters.endDate)
   } else if (filters.timeframe === 'ALL_TIME') {
     // No date restriction
   }

@@ -8,6 +8,8 @@ export async function GET(request: Request) {
   const timeframe = searchParams.get('timeframe') || 'TODAY'
   const exactDate = searchParams.get('exactDate') || ''
   const exactMonth = searchParams.get('exactMonth') || ''
+  const startDate = searchParams.get('startDate') || ''
+  const endDate = searchParams.get('endDate') || ''
   const shift = searchParams.get('shift') || 'ALL'
   const milkType = searchParams.get('milkType') || 'ALL'
   const minQty = searchParams.get('minQty') || ''
@@ -24,8 +26,10 @@ export async function GET(request: Request) {
   if (shift !== 'ALL') query = query.eq('shift', shift)
   if (milkType !== 'ALL') query = query.eq('milk_type', milkType)
   
+  const qtyOp = searchParams.get('qtyOp') || 'gt'
   if (minQty && Number(minQty) > 0) {
-    query = query.gte('quantity_litres', Number(minQty))
+    const op = qtyOp === 'eq' ? 'eq' : qtyOp === 'lt' ? 'lt' : 'gt'
+    query = query.filter('quantity_litres', op, minQty)
   }
 
   if (search) {
@@ -55,6 +59,8 @@ export async function GET(request: Request) {
     const startStr = `${yy}-${exMm}-01`
     const endStr = `${yy}-${exMm}-${String(lastDay).padStart(2, '0')}`
     query = query.gte('transaction_date', startStr).lte('transaction_date', endStr)
+  } else if (timeframe === 'CUSTOM_RANGE' && startDate && endDate) {
+    query = query.gte('transaction_date', startDate).lte('transaction_date', endDate)
   } else if (timeframe === 'MONTH_FIRST_HALF') {
     query = query.gte('transaction_date', `${year}-${mm}-01`).lte('transaction_date', `${year}-${mm}-15`)
   } else if (timeframe === 'MONTH_SECOND_HALF') {
