@@ -16,8 +16,24 @@ CREATE TABLE transactions (
   quantity_litres NUMERIC NOT NULL,
   price_per_litre NUMERIC NOT NULL,
   total_price NUMERIC NOT NULL,
-  created_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc', now()) NOT NULL
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc', now()) NOT NULL,
+  created_by UUID,
+  updated_by UUID,
+  updated_at TIMESTAMP WITH TIME ZONE
 );
+
+CREATE OR REPLACE FUNCTION update_modified_column()
+RETURNS TRIGGER AS $$
+BEGIN
+   NEW.updated_at = timezone('utc', now());
+   RETURN NEW;
+END;
+$$ language 'plpgsql';
+
+CREATE TRIGGER update_transactions_modtime
+BEFORE UPDATE ON transactions
+FOR EACH ROW
+EXECUTE FUNCTION update_modified_column();
 
 -- 3. Enable RLS
 ALTER TABLE customers ENABLE ROW LEVEL SECURITY;

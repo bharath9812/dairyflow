@@ -1,6 +1,7 @@
 import { fetchAdminTransactions, fetchAdminAggregates } from './actions'
 import AdminFilters from './AdminFilters'
 import ExportButtons from './ExportButtons'
+import TransactionActionCell from '@/components/TransactionActionCell'
 import Link from 'next/link'
 import { ArrowLeft, Download, ShieldCheck, Users, Sun, Moon, Database, ChevronLeft, ChevronRight } from 'lucide-react'
 
@@ -107,6 +108,8 @@ export default async function AdminDashboardPage(props: { searchParams: Promise<
                     {!hiddenCols.includes('col_type') && <th className="px-6 py-4 border-b border-slate-200">Commodity</th>}
                     {!hiddenCols.includes('col_volume') && <th className="px-6 py-4 border-b border-slate-200 text-right">Volume</th>}
                     {!hiddenCols.includes('col_capital') && <th className="px-6 py-4 border-b border-slate-200 text-right">Capital Out</th>}
+                    {!hiddenCols.includes('col_audit') && <th className="px-6 py-4 border-b border-slate-200 text-left">Audit Footprint</th>}
+                    <th className="px-4 py-4 border-b border-slate-200"></th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100">
@@ -168,6 +171,17 @@ export default async function AdminDashboardPage(props: { searchParams: Promise<
                             <div className="text-[10px] font-bold text-slate-400 mt-0.5">@ ₹{Number(tx.price_per_litre)}/L</div>
                           </td>
                         )}
+                        {!hiddenCols.includes('col_audit') && (
+                          <td className="px-6 py-4">
+                            <div className="text-[10px] text-slate-500 font-medium">C: {new Date(tx.created_at).toLocaleString([], { dateStyle: 'short', timeStyle: 'short' })}</div>
+                            {tx.updated_by_name && (
+                              <div className="text-[10px] text-indigo-500 font-medium mt-0.5">U: {tx.updated_by_name} ({new Date(tx.updated_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })})</div>
+                            )}
+                          </td>
+                        )}
+                        <td className="px-4 py-4 text-right">
+                          <TransactionActionCell tx={tx} />
+                        </td>
                       </tr>
                     ))
                   )}

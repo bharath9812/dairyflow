@@ -201,7 +201,8 @@ export default function AdminFilters() {
                 { key: 'col_seller', label: 'Seller' },
                 { key: 'col_type', label: 'Commodity' },
                 { key: 'col_volume', label: 'Volume' },
-                { key: 'col_capital', label: 'Capital' }
+                { key: 'col_capital', label: 'Capital' },
+                { key: 'col_audit', label: 'Audit Trail' }
               ].map(col => (
                 <button 
                   key={col.key}

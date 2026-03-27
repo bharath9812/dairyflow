@@ -1,10 +1,11 @@
 'use client'
 
 import React, { useState, useEffect } from 'react'
-import { Calendar, Droplets, User, DollarSign, Calculator, Percent, ChevronLeft, ChevronRight, Loader2, LogOut, Users, ShieldCheck } from 'lucide-react'
+import { Calendar, Droplets, User, DollarSign, Calculator, Percent, ChevronLeft, ChevronRight, Loader2, LogOut, Users, ShieldCheck, Pencil } from 'lucide-react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/utils/supabase/client'
+import TransactionActionCell from '@/components/TransactionActionCell'
 
 export default function TransactionDashboard() {
   const router = useRouter()
@@ -24,18 +25,23 @@ export default function TransactionDashboard() {
   const [transactionsList, setTransactionsList] = useState<any[]>([])
   const [currentPage, setCurrentPage] = useState(1)
   const [isSubmitting, setIsSubmitting] = useState(false)
+  const [sessionUser, setSessionUser] = useState<{ id: string, email?: string, name?: string } | null>(null)
 
   const itemsPerPage = 8
   const totalPages = Math.ceil(transactionsList.length / itemsPerPage) || 1
   const paginatedTx = transactionsList.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage)
 
-  const filteredCustomers = customersList.filter(c => 
-    (c.name && c.name.toLowerCase().includes(customerSearch.toLowerCase())) || 
-    (c.location && c.location.toLowerCase().includes(customerSearch.toLowerCase())) ||
-    (c.contact && c.contact.includes(customerSearch)) ||
-    (String(c.seller_id).padStart(3, '0').includes(customerSearch)) ||
-    (String(c.seller_id) === customerSearch)
-  )
+  const filteredCustomers = customersList.filter(c => {
+    const term = (customerSearch || '').trim().toLowerCase()
+    if (!term) return true
+    return (
+      (c.name && c.name.toLowerCase().includes(term)) || 
+      (c.location && c.location.toLowerCase().includes(term)) ||
+      (c.contact && c.contact.includes(term)) ||
+      (String(c.seller_id).padStart(3, '0').includes(term)) ||
+      (String(c.seller_id) === term)
+    )
+  })
 
   useEffect(() => {
     async function fetchData() {
@@ -52,6 +58,13 @@ export default function TransactionDashboard() {
       if (txRes.data) setTransactionsList(txRes.data)
     }
     fetchData()
+
+    supabase.auth.getUser().then(({ data }) => {
+      if (data.user) {
+        const metaName = data.user.user_metadata?.full_name || data.user.user_metadata?.name || data.user.email?.split('@')[0]
+        setSessionUser({ id: data.user.id, email: data.user.email, name: metaName })
+      }
+    })
   }, [])
 
   const quantityNum = Number(quantity) || 0
@@ -75,7 +88,10 @@ export default function TransactionDashboard() {
       quantity_litres: quantityNum,
       fat_percentage: fatNum,
       price_per_litre: priceNum,
-      total_price: totalPrice
+      total_price: totalPrice,
+      created_by: sessionUser?.id,
+      updated_by: sessionUser?.id,
+      updated_by_name: sessionUser?.name || 'Admin'
     }
 
     const { data, error } = await supabase.from('transactions').insert([newTx]).select('*, customers(name)').single()
@@ -190,7 +206,7 @@ export default function TransactionDashboard() {
                               className="px-4 py-3 hover:bg-blue-50 cursor-pointer border-b border-slate-50 last:border-0 transition-colors"
                               onClick={() => {
                                 setCustomerId(c.id)
-                                setCustomerSearch(c.name)
+                                setCustomerSearch(c.name || `#${String(c.seller_id).padStart(3, '0')} Seller`)
                                 setIsDropdownOpen(false)
                               }}
                             >
@@ -340,6 +356,7 @@ export default function TransactionDashboard() {
                      <th className="px-4 py-4 font-bold text-slate-600 uppercase tracking-wider text-[11px]">Seller Name</th>
                      <th className="px-4 py-4 font-bold text-slate-600 uppercase tracking-wider text-[11px] text-right">Data</th>
                      <th className="px-5 py-4 font-bold text-slate-600 uppercase tracking-wider text-[11px] text-right">Total (₹)</th>
+                     <th className="px-4 py-4 border-b border-slate-200"></th>
                    </tr>
                  </thead>
                  <tbody className="divide-y divide-slate-100">
@@ -366,6 +383,14 @@ export default function TransactionDashboard() {
                        </td>
                        <td className="px-5 py-4 text-right font-black text-slate-800">
                           ₹{Number(tx.total_price).toFixed(2)}
+                       </td>
+                       <td className="px-4 py-4 text-right">
+                         <TransactionActionCell tx={tx} onUpdate={() => {
+                            supabase.from('transactions').select('*, customers(seller_id, name)')
+                              .eq('transaction_date', new Date().toISOString().split('T')[0])
+                              .order('created_at', { ascending: false })
+                              .then(res => res.data && setTransactionsList(res.data))
+                         }} />
                        </td>
                      </tr>
                    ))}

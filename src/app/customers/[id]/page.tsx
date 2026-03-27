@@ -2,10 +2,11 @@
 
 import React, { useState, useEffect } from 'react'
 import { useParams, useRouter } from 'next/navigation'
-import { ArrowLeft, User, Phone, MapPin, Save, Droplets, TrendingUp, Calendar, CalendarDays, Activity, Loader2, FileDown, LogOut } from 'lucide-react'
+import { ArrowLeft, User, Phone, MapPin, Save, Droplets, TrendingUp, Calendar, CalendarDays, Activity, Loader2, FileDown, LogOut, Pencil } from 'lucide-react'
 import Link from 'next/link'
 import { createClient } from '@/utils/supabase/client'
 import { updateCustomerDetails } from './actions'
+import EditTransactionModal from '@/components/EditTransactionModal'
 
 export default function CustomerAnalyticsPage() {
   const { id } = useParams()
@@ -24,6 +25,7 @@ export default function CustomerAnalyticsPage() {
 
   // Analytics & History
   const [transactions, setTransactions] = useState<any[]>([])
+  const [editingTx, setEditingTx] = useState<any>(null)
   const [billingMonth, setBillingMonth] = useState(() => {
     const now = new Date()
     return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`
@@ -443,6 +445,7 @@ export default function CustomerAnalyticsPage() {
                     <th className="px-5 py-4 font-bold text-slate-500 uppercase tracking-wider text-[11px]">Milk Details</th>
                     <th className="px-5 py-4 font-bold text-slate-500 uppercase tracking-wider text-[11px] text-right">Price (/kg)</th>
                     <th className="px-6 py-4 font-bold text-slate-500 uppercase tracking-wider text-[11px] text-right">Total Net (₹)</th>
+                    <th className="px-4 py-4 border-b border-slate-200"></th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100">
@@ -471,6 +474,11 @@ export default function CustomerAnalyticsPage() {
                       <td className="px-6 py-4 text-right font-black text-slate-800 text-base">
                         ₹{Number(tx.total_price).toFixed(2)}
                       </td>
+                      <td className="px-4 py-4 text-right">
+                        <button onClick={() => setEditingTx(tx)} className="p-2 text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg transition-colors group">
+                          <Pencil className="w-4 h-4 group-hover:scale-110 transition-transform" />
+                        </button>
+                      </td>
                     </tr>
                   ))}
                 </tbody>
@@ -482,6 +490,18 @@ export default function CustomerAnalyticsPage() {
         </div>
 
       </main>
+
+      {editingTx && (
+        <EditTransactionModal 
+          transaction={editingTx} 
+          onClose={() => setEditingTx(null)} 
+          onSuccess={() => {
+            setEditingTx(null)
+            supabase.from('transactions').select('*').eq('customer_id', id).order('transaction_date', { ascending: false })
+              .then(res => res.data && setTransactions(res.data))
+          }} 
+        />
+      )}
     </div>
   )
 }
