@@ -1,13 +1,14 @@
 'use client'
 
-import { useRouter, useSearchParams } from 'next/navigation'
+import { useRouter, useSearchParams, usePathname } from 'next/navigation'
 import { Filter, Calendar, Sun, Moon, Activity, Search, Droplet, Hash, X, Eye, EyeOff, LayoutTemplate } from 'lucide-react'
 import { useState, useEffect } from 'react'
 
-export default function AdminFilters({ currentYear }: { currentYear?: number }) {
+export default function AdminFilters({ currentYear, isCustomerScope }: { currentYear?: number, isCustomerScope?: boolean }) {
   const displayYear = currentYear || new Date().getFullYear()
   const router = useRouter()
   const searchParams = useSearchParams()
+  const pathname = usePathname()
 
   const [timeframe, setTimeframe] = useState(searchParams.get('timeframe') || 'TODAY')
   const [exactDate, setExactDate] = useState(searchParams.get('exactDate') || '')
@@ -21,6 +22,20 @@ export default function AdminFilters({ currentYear }: { currentYear?: number }) 
   const [search, setSearch] = useState(searchParams.get('search') || '')
   const [hideTable, setHideTable] = useState(searchParams.get('hideTable') === 'true')
   const [hiddenCols, setHiddenCols] = useState<string[]>(searchParams.get('hiddenCols') ? (searchParams.get('hiddenCols') as string).split(',') : [])
+
+  // Sync state if search params change externally (back button etc)
+  useEffect(() => {
+    setTimeframe(searchParams.get('timeframe') || 'TODAY')
+    setExactDate(searchParams.get('exactDate') || '')
+    setExactMonth(searchParams.get('exactMonth') || '')
+    setStartDate(searchParams.get('startDate') || '')
+    setEndDate(searchParams.get('endDate') || '')
+    setShift(searchParams.get('shift') || 'ALL')
+    setMilkType(searchParams.get('milkType') || 'ALL')
+    setMinQty(searchParams.get('minQty') || '')
+    setQtyOp(searchParams.get('qtyOp') || 'gt')
+    setSearch(searchParams.get('search') || '')
+  }, [searchParams])
 
   // Debounced search trigger
   useEffect(() => {
@@ -48,7 +63,7 @@ export default function AdminFilters({ currentYear }: { currentYear?: number }) 
     if (hiddenCols.length > 0) params.set('hiddenCols', hiddenCols.join(','))
     
     params.set('page', '1') // Reset page on filter change
-    router.push(`/admin?${params.toString()}`)
+    router.push(`${pathname}?${params.toString()}`)
   }
 
   // Persistent Preferences
@@ -219,23 +234,19 @@ export default function AdminFilters({ currentYear }: { currentYear?: number }) 
             className="w-full bg-transparent py-2 px-1 text-sm font-bold text-slate-800 focus:outline-none placeholder:text-slate-400 placeholder:font-medium"
           />
         </div>
-
-        {/* Seller Search */}
-        <div className="relative flex-[2_1_250px]">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
-          <input 
-            type="text"
-            placeholder="Search Seller ID/Name..."
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            className="w-full pl-10 pr-8 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm font-bold text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:bg-white transition-all placeholder:text-slate-400 placeholder:font-medium"
-          />
-          {search && (
-            <button onClick={() => setSearch('')} className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600">
-              <X className="w-3.5 h-3.5" />
-            </button>
-          )}
-        </div>
+        {/* Seller Search - Hidden if inside customer scope */}
+        {!isCustomerScope && (
+          <div className="relative flex-[1_1_250px]">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+            <input 
+              type="text"
+              placeholder="Search by Seller Name or ID..."
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              className="w-full pl-10 pr-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm font-bold text-slate-700 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all hover:bg-slate-100"
+            />
+          </div>
+        )}
 
       </div>
 

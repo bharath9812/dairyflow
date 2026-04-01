@@ -16,6 +16,7 @@ export async function GET(request: Request) {
   const search = searchParams.get('search') || ''
   const format = searchParams.get('format') || 'csv'
   const hiddenCols = (searchParams.get('hiddenCols') || '').split(',').filter(Boolean)
+  const customerId = searchParams.get('customerId') || ''
 
   const supabase = await createClient()
 
@@ -25,6 +26,7 @@ export async function GET(request: Request) {
 
   if (shift !== 'ALL') query = query.eq('shift', shift)
   if (milkType !== 'ALL') query = query.eq('milk_type', milkType)
+  if (customerId) query = query.eq('customer_id', customerId)
   
   const qtyOp = searchParams.get('qtyOp') || 'gt'
   if (minQty && Number(minQty) > 0) {

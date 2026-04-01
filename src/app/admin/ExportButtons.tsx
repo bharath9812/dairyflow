@@ -5,10 +5,10 @@ import { Download, FileText, Loader2 } from 'lucide-react'
 import { jsPDF } from 'jspdf'
 import autoTable from 'jspdf-autotable'
 
-export default function ExportButtons({ timeframe, exactDate, exactMonth, startDate, endDate, shift, milkType, minQty, qtyOp, search, hiddenCols }: { timeframe: string, exactDate: string, exactMonth: string, startDate?: string, endDate?: string, shift: string, milkType: string, minQty: string, qtyOp: string, search: string, hiddenCols: string[] }) {
+export default function ExportButtons({ timeframe, exactDate, exactMonth, startDate, endDate, shift, milkType, minQty, qtyOp, search, hiddenCols, customerId }: { timeframe: string, exactDate: string, exactMonth: string, startDate?: string, endDate?: string, shift: string, milkType: string, minQty: string, qtyOp: string, search: string, hiddenCols: string[], customerId?: string }) {
   const [isExportingPDF, setIsExportingPDF] = useState(false)
 
-  const queryStr = `timeframe=${timeframe}&exactDate=${exactDate}&exactMonth=${exactMonth}&startDate=${startDate}&endDate=${endDate}&shift=${shift}&milkType=${milkType}&minQty=${minQty}&qtyOp=${qtyOp}&search=${encodeURIComponent(search)}&hiddenCols=${hiddenCols.join(',')}`
+  const queryStr = `timeframe=${timeframe}&exactDate=${exactDate}&exactMonth=${exactMonth}&startDate=${startDate}&endDate=${endDate}&shift=${shift}&milkType=${milkType}&minQty=${minQty}&qtyOp=${qtyOp}&search=${encodeURIComponent(search)}&hiddenCols=${hiddenCols.join(',')}${customerId ? `&customerId=${customerId}` : ''}`
 
   const downloadCSV = () => {
     window.open(`/api/export?${queryStr}&format=csv`, '_blank')

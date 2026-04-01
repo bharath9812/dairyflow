@@ -2,12 +2,16 @@
 
 import { createClient } from '@/utils/supabase/server'
 
-export async function fetchAdminTransactions(filters: { timeframe: string, shift: string, milkType?: string, minQty?: string, qtyOp?: string, search?: string, exactDate?: string, exactMonth?: string, startDate?: string, endDate?: string, limit: number, offset: number }) {
+export async function fetchAdminTransactions(filters: { timeframe: string, shift: string, milkType?: string, minQty?: string, qtyOp?: string, search?: string, exactDate?: string, exactMonth?: string, startDate?: string, endDate?: string, customerId?: string, limit: number, offset: number }) {
   const supabase = await createClient()
 
   let query = supabase
     .from('transactions')
     .select('*, customers!inner(seller_id, name, location)', { count: 'exact' })
+
+  if (filters.customerId) {
+    query = query.eq('customer_id', filters.customerId)
+  }
 
   // Shift Handling
   if (filters.shift && filters.shift !== 'ALL') {
@@ -84,12 +88,16 @@ export async function fetchAdminTransactions(filters: { timeframe: string, shift
   return { data, count }
 }
 
-export async function fetchAdminAggregates(filters: { timeframe: string, shift: string, milkType?: string, minQty?: string, qtyOp?: string, search?: string, exactDate?: string, exactMonth?: string, startDate?: string, endDate?: string }) {
+export async function fetchAdminAggregates(filters: { timeframe: string, shift: string, milkType?: string, minQty?: string, qtyOp?: string, search?: string, exactDate?: string, exactMonth?: string, startDate?: string, endDate?: string, customerId?: string }) {
   const supabase = await createClient()
 
   let query = supabase
     .from('transactions')
     .select('quantity_litres, total_price, shift, customers!inner(seller_id, name)')
+
+  if (filters.customerId) {
+    query = query.eq('customer_id', filters.customerId)
+  }
 
   // Milk Type Handling
   if (filters.milkType && filters.milkType !== 'ALL') {
