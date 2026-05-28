@@ -158,7 +158,7 @@ export async function fetchAdminAggregates(filters: { timeframe: string, shift: 
 
   if (error) {
     console.error("Aggregation Frame Error:", error.message)
-    return { total_bought: 0, morning_bought: 0, evening_bought: 0, total_spent: 0, morning_spent: 0, evening_spent: 0 }
+    return { total_bought: 0, morning_bought: 0, evening_bought: 0, total_spent: 0, morning_spent: 0, evening_spent: 0, total_net_payable: 0, total_deducted: 0 }
   }
 
   let totals = {
