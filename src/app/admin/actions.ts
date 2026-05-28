@@ -92,7 +92,7 @@ export async function fetchAdminAggregates(filters: { timeframe: string, shift: 
   const supabase = await createClient()
 
   let query = supabase.from('transactions').select(
-    filters.search ? 'quantity_litres, total_price, loan_deduction, shift, customers!inner(seller_id, name)' : 'quantity_litres, total_price, loan_deduction, shift'
+    'quantity_litres, total_price, loan_deduction, shift, customers!inner(seller_id, name)'
   )
 
   if (filters.customerId) {
