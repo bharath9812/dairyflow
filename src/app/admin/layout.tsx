@@ -35,9 +35,11 @@ export default async function AdminLayout({ children }: { children: React.ReactN
           <Link href="/admin/profile" className="flex items-center gap-3 px-4 py-3 rounded-xl hover:bg-white text-slate-600 hover:text-blue-600 font-bold hover:shadow-sm border border-transparent hover:border-slate-200 transition-all">
             <UserCog className="w-5 h-5 text-slate-400" /> My Profile
           </Link>
-          <Link href="/admin/employees" className="flex items-center gap-3 px-4 py-3 rounded-xl hover:bg-white text-slate-600 hover:text-blue-600 font-bold hover:shadow-sm border border-transparent hover:border-slate-200 transition-all">
-            <Users className="w-5 h-5 text-slate-400" /> Manage Employees
-          </Link>
+          {user.user_metadata?.role === 'primary' && (
+            <Link href="/admin/employees" className="flex items-center gap-3 px-4 py-3 rounded-xl hover:bg-white text-slate-600 hover:text-blue-600 font-bold hover:shadow-sm border border-transparent hover:border-slate-200 transition-all">
+              <Users className="w-5 h-5 text-slate-400" /> Manage Employees
+            </Link>
+          )}
           <form action={async () => {
             'use server';
             const s = await createClient()
@@ -69,12 +71,14 @@ export default async function AdminLayout({ children }: { children: React.ReactN
               <span className="text-[9px] sm:text-[10px] uppercase font-bold text-slate-600">Profile</span>
             </Link>
 
-            <Link href="/admin/employees" className="flex flex-col items-center justify-center gap-2 bg-white border border-slate-200 p-3 rounded-2xl shadow-sm hover:border-blue-300 transition-all text-center">
-              <div className="w-10 h-10 rounded-full bg-slate-50 flex items-center justify-center">
-                <Users className="w-5 h-5 text-slate-600" />
-              </div>
-              <span className="text-[9px] sm:text-[10px] uppercase font-bold text-slate-600">Staff</span>
-            </Link>
+            {user.user_metadata?.role === 'primary' && (
+              <Link href="/admin/employees" className="flex flex-col items-center justify-center gap-2 bg-white border border-slate-200 p-3 rounded-2xl shadow-sm hover:border-blue-300 transition-all text-center">
+                <div className="w-10 h-10 rounded-full bg-slate-50 flex items-center justify-center">
+                  <Users className="w-5 h-5 text-slate-600" />
+                </div>
+                <span className="text-[9px] sm:text-[10px] uppercase font-bold text-slate-600">Staff</span>
+              </Link>
+            )}
 
             <form action={async () => {
               'use server';

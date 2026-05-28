@@ -2,13 +2,14 @@
 
 import { useRouter, useSearchParams, usePathname } from 'next/navigation'
 import { Filter, Calendar, Sun, Moon, Activity, Search, Droplet, Hash, X, Eye, EyeOff, LayoutTemplate } from 'lucide-react'
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useTransition } from 'react'
 
 export default function AdminFilters({ currentYear, isCustomerScope }: { currentYear?: number, isCustomerScope?: boolean }) {
   const displayYear = currentYear || new Date().getFullYear()
   const router = useRouter()
   const searchParams = useSearchParams()
   const pathname = usePathname()
+  const [isPending, startTransition] = useTransition()
 
   const [timeframe, setTimeframe] = useState(searchParams.get('timeframe') || 'TODAY')
   const [exactDate, setExactDate] = useState(searchParams.get('exactDate') || '')
@@ -63,7 +64,10 @@ export default function AdminFilters({ currentYear, isCustomerScope }: { current
     if (hiddenCols.length > 0) params.set('hiddenCols', hiddenCols.join(','))
     
     params.set('page', '1') // Reset page on filter change
-    router.push(`${pathname}?${params.toString()}`)
+    
+    startTransition(() => {
+      router.push(`${pathname}?${params.toString()}`, { scroll: false })
+    })
   }
 
   // Persistent Preferences

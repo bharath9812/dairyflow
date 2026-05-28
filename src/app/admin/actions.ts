@@ -91,9 +91,9 @@ export async function fetchAdminTransactions(filters: { timeframe: string, shift
 export async function fetchAdminAggregates(filters: { timeframe: string, shift: string, milkType?: string, minQty?: string, qtyOp?: string, search?: string, exactDate?: string, exactMonth?: string, startDate?: string, endDate?: string, customerId?: string }) {
   const supabase = await createClient()
 
-  let query = supabase
-    .from('transactions')
-    .select('quantity_litres, total_price, shift, customers!inner(seller_id, name)')
+  let query = supabase.from('transactions').select(
+    filters.search ? 'quantity_litres, total_price, loan_deduction, shift, customers!inner(seller_id, name)' : 'quantity_litres, total_price, loan_deduction, shift'
+  )
 
   if (filters.customerId) {
     query = query.eq('customer_id', filters.customerId)
@@ -167,7 +167,9 @@ export async function fetchAdminAggregates(filters: { timeframe: string, shift: 
     evening_bought: 0,
     total_spent: 0,
     morning_spent: 0,
-    evening_spent: 0
+    evening_spent: 0,
+    total_net_payable: 0,
+    total_deducted: 0
   }
 
   data?.forEach(tx => {
@@ -176,9 +178,12 @@ export async function fetchAdminAggregates(filters: { timeframe: string, shift: 
 
     const lit = Number(tx.quantity_litres) || 0
     const price = Number(tx.total_price) || 0
+    const deducted = Number(tx.loan_deduction) || 0
 
     totals.total_bought += lit
     totals.total_spent += price
+    totals.total_deducted += deducted
+    totals.total_net_payable += (price - deducted)
 
     if (tx.shift === 'Morning') {
       totals.morning_bought += lit

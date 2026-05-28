@@ -22,6 +22,10 @@ export default async function EmployeeManagementPage(props: { searchParams?: Pro
 
   if (!user) redirect('/login')
 
+  if (user.user_metadata?.role !== 'primary') {
+    redirect('/admin')
+  }
+
   // Fetch complete roster
   const { data: authUsers, error } = await supabaseAdmin.auth.admin.listUsers()
 
@@ -136,6 +140,17 @@ export default async function EmployeeManagementPage(props: { searchParams?: Pro
                       }} className="flex-1 sm:flex-none">
                         <button className="w-full flex items-center justify-center gap-1.5 px-3 py-1.5 text-xs font-bold text-slate-600 hover:text-blue-600 bg-slate-100 hover:bg-blue-50 rounded-lg transition-colors border border-transparent hover:border-blue-100">
                           <KeyRound className="w-3.5 h-3.5" /> Reset Password
+                        </button>
+                      </form>
+                      <form action={async () => {
+                        'use server'
+                        const { transferPrimaryAdmin } = await import('./actions')
+                        await transferPrimaryAdmin(target.id, user.id)
+                      }} className="flex-1 sm:flex-none">
+                        <button
+                          className="w-full flex items-center justify-center gap-1.5 px-3 py-1.5 text-xs font-bold text-amber-600 hover:text-white bg-amber-50 hover:bg-amber-500 rounded-lg transition-colors border border-amber-100 hover:border-amber-500"
+                        >
+                          Make Primary
                         </button>
                       </form>
                       <form action={deleteEmployee} className="flex-1 sm:flex-none">

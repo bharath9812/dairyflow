@@ -2,9 +2,12 @@ import { fetchAdminTransactions, fetchAdminAggregates } from './actions'
 import AdminFilters from './AdminFilters'
 import ExportButtons from './ExportButtons'
 import TransactionActionCell from '@/components/TransactionActionCell'
+import PricingManager from './PricingManager'
+import { createClient } from '@/utils/supabase/server'
 import Link from 'next/link'
 import { ArrowLeft, Download, ShieldCheck, Users, Sun, Moon, Database, ChevronLeft, ChevronRight, Loader2 } from 'lucide-react'
 import { Suspense } from 'react'
+import { MultiSelectProvider, MultiSelectHeader, MultiSelectCheckbox } from '@/components/MultiSelect'
 
 export default async function AdminDashboardPage(props: { searchParams: Promise<{ timeframe?: string, shift?: string, milkType?: string, minQty?: string, qtyOp?: string, search?: string, exactDate?: string, exactMonth?: string, startDate?: string, endDate?: string, hideTable?: string, hiddenCols?: string, page?: string }> }) {
   const searchParams = await props.searchParams
@@ -27,12 +30,15 @@ export default async function AdminDashboardPage(props: { searchParams: Promise<
   const currentYear = new Date().getFullYear()
 
   // Fire parallel queries to Supabase
-  const [aggregates, txData] = await Promise.all([
+  const supabase = await createClient()
+  const [aggregates, txData, pricingRes] = await Promise.all([
     fetchAdminAggregates({ timeframe, shift, milkType, minQty, qtyOp, search, exactDate, exactMonth, startDate, endDate }),
-    fetchAdminTransactions({ timeframe, shift, milkType, minQty, qtyOp, search, exactDate, exactMonth, startDate, endDate, limit, offset })
+    fetchAdminTransactions({ timeframe, shift, milkType, minQty, qtyOp, search, exactDate, exactMonth, startDate, endDate, limit, offset }),
+    supabase.from('global_pricing').select('*').limit(1).single()
   ])
 
   const totalPages = Math.ceil((txData.count ?? 0) / limit)
+  const pricingData = pricingRes.data || { cow_price: 40, buffalo_price: 50 }
 
   return (
     <div className="font-sans space-y-8 pb-12">
@@ -44,10 +50,14 @@ export default async function AdminDashboardPage(props: { searchParams: Promise<
             <p className="text-sm font-bold text-slate-500 mb-1">Total Milk Bought</p>
             <h2 className="text-3xl font-black text-slate-800 tracking-tight">{aggregates.total_bought.toFixed(1)} <span className="text-lg text-slate-400">L</span></h2>
           </div>
-          <div className="bg-white rounded-2xl p-5 border border-slate-200 shadow-sm relative overflow-hidden">
+          <div className="bg-white rounded-2xl p-5 border border-slate-200 shadow-sm relative overflow-hidden flex flex-col justify-between">
             <div className="absolute -right-4 -top-4 w-24 h-24 bg-emerald-50 rounded-full blur-2xl opacity-60 pointer-events-none"></div>
-            <p className="text-sm font-bold text-slate-500 mb-1">Capital Deployed</p>
-            <h2 className="text-3xl font-black text-slate-800 tracking-tight"><span className="text-emerald-500 mr-1">₹</span>{aggregates.total_spent.toFixed(2)}</h2>
+            <p className="text-sm font-bold text-slate-500 mb-1">Net Payable <span className="text-[10px] bg-slate-100 px-1.5 py-0.5 rounded ml-1 tracking-widest text-slate-400">AFTER LOANS</span></p>
+            <h2 className="text-3xl font-black text-slate-800 tracking-tight"><span className="text-emerald-500 mr-1">₹</span>{aggregates.total_net_payable.toFixed(2)}</h2>
+            <div className="text-[10px] font-bold text-slate-400 mt-2 flex items-center justify-between">
+              <span>Gross: ₹{aggregates.total_spent.toFixed(2)}</span>
+              <span className="text-rose-500">Rec: -₹{aggregates.total_deducted.toFixed(2)}</span>
+            </div>
           </div>
           <div className="bg-white rounded-2xl p-5 border border-slate-200 shadow-sm relative overflow-hidden flex flex-col justify-center">
             <div className="flex items-center justify-between mb-2">
@@ -72,6 +82,9 @@ export default async function AdminDashboardPage(props: { searchParams: Promise<
             </div>
           </div>
         </div>
+
+        {/* Global Pricing Management Node */}
+        <PricingManager initialCow={pricingData.cow_price} initialBuffalo={pricingData.buffalo_price} />
 
         {/* Master Control Bar */}
         <div className="flex flex-col lg:flex-row gap-4 items-start lg:items-center justify-between">
@@ -113,10 +126,12 @@ export default async function AdminDashboardPage(props: { searchParams: Promise<
               </div>
             </div>
             
-            <div className="overflow-x-auto">
+          <MultiSelectProvider allIds={txData.data?.map((tx: any) => tx.id) || []}>
+            <div className="overflow-x-auto min-h-[400px]">
               <table className="w-full text-left text-sm whitespace-nowrap">
                 <thead className="bg-slate-50/80 text-slate-500 font-bold uppercase text-[10px] tracking-wider sticky top-0 z-10">
                   <tr>
+                    <th className="px-4 py-4 w-10 text-center"><MultiSelectHeader /></th>
                     {!hiddenCols.includes('col_sno') && <th className="px-4 py-4 border-b border-slate-200 text-center">S.No</th>}
                     {!hiddenCols.includes('col_tx_id') && <th className="px-6 py-4 border-b border-slate-200">Tx ID</th>}
                     {!hiddenCols.includes('col_date') && <th className="px-6 py-4 border-b border-slate-200">Date & Temp</th>}
@@ -131,13 +146,16 @@ export default async function AdminDashboardPage(props: { searchParams: Promise<
                 <tbody className="divide-y divide-slate-100">
                   {txData.data?.length === 0 ? (
                     <tr>
-                      <td colSpan={9} className="px-6 py-12 text-center text-slate-400 font-medium bg-slate-50/30">
+                      <td colSpan={10} className="px-6 py-12 text-center text-slate-400 font-medium bg-slate-50/30">
                         No transaction metrics found for this scope.
                       </td>
                     </tr>
                   ) : (
                     txData.data?.map((tx, index) => (
-                      <tr key={tx.id} className="hover:bg-slate-50 transition-colors">
+                      <tr key={tx.id} className="border-b border-slate-100/80 hover:bg-slate-50/80 transition-colors group">
+                        <td className="px-4 py-4 text-center align-middle">
+                          <MultiSelectCheckbox id={tx.id} />
+                        </td>
                         {!hiddenCols.includes('col_sno') && (
                           <td className="px-4 py-4 text-center text-slate-400 font-mono text-xs">
                             {offset + index + 1}
@@ -174,8 +192,7 @@ export default async function AdminDashboardPage(props: { searchParams: Promise<
                         )}
                         {!hiddenCols.includes('col_type') && (
                           <td className="px-6 py-4">
-                            <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-bold border 
-                              {tx.milk_type === 'Cow' ? 'bg-amber-50 text-amber-700 border-amber-200' : 'bg-slate-100 text-slate-700 border-slate-200'}">
+                            <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-bold border ${tx.milk_type === 'Cow' ? 'bg-amber-50 text-amber-700 border-amber-200' : 'bg-slate-100 text-slate-700 border-slate-200'}`}>
                               {tx.milk_type === 'Cow' ? '🐄 Cow' : '🐃 Buffalo'}
                             </span>
                           </td>
@@ -187,9 +204,27 @@ export default async function AdminDashboardPage(props: { searchParams: Promise<
                           </td>
                         )}
                         {!hiddenCols.includes('col_capital') && (
-                          <td className="px-6 py-4 text-right">
-                            <div className="font-black text-emerald-600">₹{Number(tx.total_price).toFixed(2)}</div>
+                          <td className="px-6 py-4 text-right align-top">
+                            <div className="font-black text-emerald-600">₹{Number(tx.net_payable ?? tx.total_price).toFixed(2)}</div>
                             <div className="text-[10px] font-bold text-slate-400 mt-0.5">@ ₹{Number(tx.price_per_litre)}/L</div>
+                            
+                            {tx.status && tx.status !== 'NORMAL' && (
+                              <div className="mt-2 flex flex-col items-end gap-1">
+                                <div className={`text-[9px] font-bold uppercase tracking-widest px-1.5 py-0.5 rounded inline-block
+                                  ${tx.status === 'LOAN_CLEARED' ? 'bg-emerald-50 text-emerald-600 border border-emerald-100' : 'bg-amber-50 text-amber-600 border border-amber-100'}`}>
+                                  {tx.status === 'LOAN_CLEARED' ? 'Loan Cleared' : 'Loan Adjusted'}
+                                </div>
+                                <div className="text-[10px] font-medium text-slate-500 bg-slate-50 border border-slate-200 px-2 py-1 rounded shadow-sm flex flex-col items-end leading-tight mt-1">
+                                  <span>Gross: ₹{Number(tx.total_price).toFixed(2)}</span>
+                                  <span className="text-rose-500 font-bold">Deduct: -₹{Number(tx.loan_deduction).toFixed(2)}</span>
+                                  {tx.loan_balance_after !== undefined && tx.loan_balance_after !== null && (
+                                    <span className="text-amber-600 font-bold border-t border-slate-200 pt-0.5 mt-0.5 w-full text-right">
+                                      Rem Bal: ₹{Number(tx.loan_balance_after).toFixed(2)}
+                                    </span>
+                                  )}
+                                </div>
+                              </div>
+                            )}
                           </td>
                         )}
                         {!hiddenCols.includes('col_audit') && (
@@ -209,8 +244,9 @@ export default async function AdminDashboardPage(props: { searchParams: Promise<
                 </tbody>
               </table>
             </div>
+          </MultiSelectProvider>
 
-            {/* Table Pagination Bounds */}
+          {/* Table Pagination Bounds */}
             {totalPages > 1 && (
               <div className="bg-white border-t border-slate-200 p-4 shrink-0 flex items-center justify-between">
                 <span className="text-xs font-semibold text-slate-500">
@@ -219,6 +255,7 @@ export default async function AdminDashboardPage(props: { searchParams: Promise<
                 <div className="flex items-center gap-1.5">
                   <Link 
                     href={`/admin?timeframe=${timeframe}&exactDate=${exactDate}&exactMonth=${exactMonth}&shift=${shift}&milkType=${milkType}&minQty=${minQty}&search=${encodeURIComponent(search)}&hideTable=${hideTable}&hiddenCols=${hiddenCols.join(',')}&page=${Math.max(1, page - 1)}`}
+                    scroll={false}
                     className={`p-1.5 rounded-md border ${page === 1 ? 'border-slate-200 text-slate-300 pointer-events-none' : 'border-slate-200 text-slate-500 hover:text-blue-600 hover:bg-blue-50 transition-colors'}`}
                   >
                     <ChevronLeft className="w-4 h-4" />
@@ -228,6 +265,7 @@ export default async function AdminDashboardPage(props: { searchParams: Promise<
                   </div>
                   <Link 
                     href={`/admin?timeframe=${timeframe}&exactDate=${exactDate}&exactMonth=${exactMonth}&shift=${shift}&milkType=${milkType}&minQty=${minQty}&search=${encodeURIComponent(search)}&hideTable=${hideTable}&hiddenCols=${hiddenCols.join(',')}&page=${Math.min(totalPages, page + 1)}`}
+                    scroll={false}
                     className={`p-1.5 rounded-md border ${page === totalPages ? 'border-slate-200 text-slate-300 pointer-events-none' : 'border-slate-200 text-slate-500 hover:text-blue-600 hover:bg-blue-50 transition-colors'}`}
                   >
                     <ChevronRight className="w-4 h-4" />

@@ -83,6 +83,12 @@ export async function GET(request: Request) {
     return NextResponse.json({ error: 'Failed to stream data' }, { status: 500 })
   }
 
+  let loansData: any[] = []
+  if (customerId && format === 'json') {
+    const { data: ld } = await supabase.from('customer_loans').select('*').eq('customer_id', customerId).order('created_at', { ascending: false })
+    if (ld) loansData = ld
+  }
+
   if (format === 'csv') {
     const headerParts = []
     if (!hiddenCols.includes('col_sno')) headerParts.push('S.No')
@@ -90,7 +96,7 @@ export async function GET(request: Request) {
     if (!hiddenCols.includes('col_seller')) headerParts.push('Seller ID', 'Seller Name')
     if (!hiddenCols.includes('col_type')) headerParts.push('Milk Type')
     if (!hiddenCols.includes('col_volume')) headerParts.push('Quantity (L)')
-    if (!hiddenCols.includes('col_capital')) headerParts.push('Rate (INR)', 'Total Price (INR)')
+    if (!hiddenCols.includes('col_capital')) headerParts.push('Rate (INR)', 'Gross Price (INR)', 'Net Payable (INR)', 'Loan Deduction (INR)')
     if (!hiddenCols.includes('col_audit')) headerParts.push('Audit Trail')
 
     const csvContent = [
@@ -102,7 +108,10 @@ export async function GET(request: Request) {
         if (!hiddenCols.includes('col_seller')) rowParts.push(String(tx.customers?.seller_id).padStart(3, '0'), `"${tx.customers?.name || 'Unknown'}"`)
         if (!hiddenCols.includes('col_type')) rowParts.push(tx.milk_type)
         if (!hiddenCols.includes('col_volume')) rowParts.push(tx.quantity_litres)
-        if (!hiddenCols.includes('col_capital')) rowParts.push(tx.price_per_litre, tx.total_price)
+        if (!hiddenCols.includes('col_capital')) {
+          const np = (Number(tx.total_price) - (Number(tx.loan_deduction) || 0)).toFixed(2)
+          rowParts.push(tx.price_per_litre, tx.total_price, np, tx.loan_deduction || 0)
+        }
         if (!hiddenCols.includes('col_audit')) {
           const creation = `C: ${tx.created_by_name || 'Admin'} (${new Date(tx.created_at).toLocaleDateString()})`
           const update = tx.updated_at ? ` | U: ${tx.updated_by_name || 'Admin'} (${new Date(tx.updated_at).toLocaleDateString()})` : ''
@@ -121,7 +130,7 @@ export async function GET(request: Request) {
   }
 
   if (format === 'json') {
-    return NextResponse.json({ data })
+    return NextResponse.json({ data, loans: loansData })
   }
 
   return NextResponse.json({ error: 'Unsupported format' }, { status: 400 })

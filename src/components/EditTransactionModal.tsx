@@ -23,6 +23,13 @@ export default function EditTransactionModal({ transaction, onClose, onSuccess }
     const pNum = Number(price) || 0
     const total = (qNum * fNum * pNum) / 100
 
+    const existingDeduction = Number(transaction?.loan_deduction || 0)
+    if (total < existingDeduction) {
+      alert(`Cannot reduce gross value below ₹${existingDeduction.toFixed(2)} because it was already recovered towards an active loan.`)
+      setIsSubmitting(false)
+      return
+    }
+
     const { data: { user } } = await supabase.auth.getUser()
     const updatedName = user?.user_metadata?.full_name || user?.user_metadata?.name || user?.email?.split('@')[0] || 'Admin'
 

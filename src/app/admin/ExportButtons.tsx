@@ -68,7 +68,7 @@ export default function ExportButtons({ timeframe, exactDate, exactMonth, startD
       if (!hiddenCols.includes('col_seller')) tableColumn.push('Seller ID', 'Name')
       if (!hiddenCols.includes('col_type')) tableColumn.push('Type')
       if (!hiddenCols.includes('col_volume')) tableColumn.push('Volume (L)')
-      if (!hiddenCols.includes('col_capital')) tableColumn.push('Rate', 'Total (INR)')
+      if (!hiddenCols.includes('col_capital')) tableColumn.push('Rate', 'Gross (INR)', 'Net Payable', 'Loan')
       if (!hiddenCols.includes('col_audit')) tableColumn.push('Audit Trail')
 
       const tableRows = json.data.map((tx: any, index: number) => {
@@ -89,8 +89,21 @@ export default function ExportButtons({ timeframe, exactDate, exactMonth, startD
           row.push(Number(tx.quantity_litres).toFixed(1))
         }
         if (!hiddenCols.includes('col_capital')) {
+          const tp = Number(tx.total_price)
+          const ded = Number(tx.loan_deduction) || 0
+          const np = tp - ded
+          
           row.push(Number(tx.price_per_litre).toFixed(2))
-          row.push(Number(tx.total_price).toFixed(2))
+          row.push(tp.toFixed(2))
+          
+          // If adjusted, show breakdown
+          if (tx.status !== 'NORMAL' && ded > 0) {
+            row.push(`Net: ${np.toFixed(2)}\n(Gross: ${tp.toFixed(2)} - Rec: ${ded.toFixed(2)})`)
+            row.push(`-${ded.toFixed(2)}`)
+          } else {
+            row.push(np.toFixed(2))
+            row.push('N/A')
+          }
         }
         if (!hiddenCols.includes('col_audit')) {
           let auditStr = `C: ${tx.created_by_name || 'Admin'} (${new Date(tx.created_at).toLocaleDateString()})`
@@ -103,11 +116,17 @@ export default function ExportButtons({ timeframe, exactDate, exactMonth, startD
       })
 
       // Calculate Aggregates
-      let sumVol = 0, sumCap = 0, cowVol = 0, bufVol = 0, mornVol = 0, eveVol = 0
+      let sumVol = 0, sumCap = 0, sumDed = 0, sumNet = 0, cowVol = 0, bufVol = 0, mornVol = 0, eveVol = 0
       json.data.forEach((tx: any) => {
         const v = Number(tx.quantity_litres)
+        const tp = Number(tx.total_price)
+        const ded = Number(tx.loan_deduction) || 0
+        
         sumVol += v
-        sumCap += Number(tx.total_price)
+        sumCap += tp
+        sumDed += ded
+        sumNet += (tp - ded)
+        
         if (tx.milk_type === 'Cow') cowVol += v
         if (tx.milk_type === 'Buffalo') bufVol += v
         if (tx.shift === 'Morning') mornVol += v
@@ -122,7 +141,20 @@ export default function ExportButtons({ timeframe, exactDate, exactMonth, startD
         headStyles: { fillColor: [15, 23, 42], fontSize: 9, fontStyle: 'bold' },
         bodyStyles: { fontSize: 8, textColor: [51, 65, 85] },
         alternateRowStyles: { fillColor: [248, 250, 252] },
-        margin: { top: 65 }
+        margin: { top: 65 },
+        didParseCell: function (data) {
+          // Highlight rows that are LOAN_ADJUSTED or LOAN_CLEARED
+          if (data.section === 'body') {
+            const rowData = json.data[data.row.index];
+            if (rowData && rowData.status !== 'NORMAL' && (Number(rowData.loan_deduction) > 0)) {
+              data.cell.styles.fillColor = [254, 242, 242]; // red-50
+              if (data.column.index === 5 || data.column.index === 6) { // Capital Columns
+                data.cell.styles.textColor = [225, 29, 72]; // rose-600
+                data.cell.styles.fontStyle = 'bold';
+              }
+            }
+          }
+        }
       })
 
       // Draw Summary Table
@@ -143,9 +175,17 @@ export default function ExportButtons({ timeframe, exactDate, exactMonth, startD
             'Morning Checkins', `${mornVol.toFixed(1)} L`
           ],
           [
-            'Net Capital', `Rs. ${sumCap.toFixed(2)}`,
+            'Gross Capital', `Rs. ${sumCap.toFixed(2)}`,
             'Buffalo Variant', `${bufVol.toFixed(1)} L`,
             'Evening Checkins', `${eveVol.toFixed(1)} L`
+          ],
+          [
+            'Loan Deductions', `- Rs. ${sumDed.toFixed(2)}`,
+            '-', '-', '-', '-'
+          ],
+          [
+            'Net Final Payable', `Rs. ${sumNet.toFixed(2)}`,
+            '-', '-', '-', '-'
           ]
         ],
         bodyStyles: { textColor: [51, 65, 85], cellPadding: 4, valign: 'middle' },
@@ -159,7 +199,44 @@ export default function ExportButtons({ timeframe, exactDate, exactMonth, startD
         }
       })
 
-      // 4. Save file uniquely
+      // 4. Draw Loan History Table (If Customer ID is present)
+      if (customerId && json.loans && json.loans.length > 0) {
+        let currentY = (doc as any).lastAutoTable.finalY + 15
+        
+        doc.setFontSize(11)
+        doc.setFont("helvetica", "bold")
+        doc.setTextColor(15, 23, 42)
+        doc.text("Customer Loan / Advance Ledger", 14, currentY)
+        currentY += 6
+
+        const loanTableRows = json.loans.map((loan: any) => {
+          return [
+            new Date(loan.created_at).toLocaleDateString('en-GB'),
+            `L-${loan.id.split('-')[0].toUpperCase()}`,
+            Number(loan.amount).toFixed(2),
+            Number(loan.recovered_amount).toFixed(2),
+            (Number(loan.amount) - Number(loan.recovered_amount)).toFixed(2),
+            loan.status
+          ]
+        })
+
+        autoTable(doc, {
+          head: [['Issued Date', 'Loan ID', 'Amount (INR)', 'Recovered (INR)', 'Pending (INR)', 'Status']],
+          body: loanTableRows,
+          startY: currentY,
+          theme: 'striped',
+          headStyles: { fillColor: [71, 85, 105], fontSize: 9, fontStyle: 'bold' },
+          bodyStyles: { fontSize: 8 },
+          didParseCell: function (data) {
+            if (data.section === 'body' && data.column.index === 5) {
+              if (data.cell.raw === 'ACTIVE') data.cell.styles.textColor = [37, 99, 235] // blue
+              if (data.cell.raw === 'CLEARED') data.cell.styles.textColor = [16, 185, 129] // green
+            }
+          }
+        })
+      }
+
+      // 5. Save file uniquely
       doc.save(`DairyFlow_Export_${timeframe}_${shift.toUpperCase()}.pdf`)
 
     } catch (err) {

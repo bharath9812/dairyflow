@@ -5,8 +5,10 @@ import { createClient } from '@/utils/supabase/server'
 import { fetchAdminTransactions, fetchAdminAggregates } from '@/app/admin/actions'
 import AdminFilters from '@/app/admin/AdminFilters'
 import ExportButtons from '@/app/admin/ExportButtons'
+import { MultiSelectProvider, MultiSelectHeader, MultiSelectCheckbox } from '@/components/MultiSelect'
 import TransactionActionCell from '@/components/TransactionActionCell'
 import CustomerProfileForm from './CustomerProfileForm'
+import CustomerLoanSection from './CustomerLoanSection'
 
 export default async function CustomerAnalyticsPage(props: { 
   params: Promise<{ id: string }>,
@@ -139,10 +141,14 @@ export default async function CustomerAnalyticsPage(props: {
               <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1 relative z-10">Total Volume</p>
               <h2 className="text-2xl font-black text-slate-800 tracking-tight relative z-10">{totalVol.toFixed(1)} <span className="text-sm text-slate-400">L</span></h2>
             </div>
-            <div className="bg-white rounded-2xl p-5 border border-slate-200 shadow-sm relative overflow-hidden group/tile">
+            <div className="bg-white rounded-2xl p-5 border border-slate-200 shadow-sm relative overflow-hidden group/tile flex flex-col justify-between">
               <div className="absolute -right-4 -top-4 w-20 h-20 bg-emerald-50 rounded-full blur-2xl opacity-60 group-hover/tile:scale-110 transition-transform"></div>
-              <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1 relative z-10">Capital flow</p>
-              <h2 className="text-2xl font-black text-slate-800 tracking-tight relative z-10"><span className="text-emerald-500 mr-0.5">₹</span>{totalPrice.toLocaleString()}</h2>
+              <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1 relative z-10">Net Payable</p>
+              <h2 className="text-2xl font-black text-slate-800 tracking-tight relative z-10"><span className="text-emerald-500 mr-0.5">₹</span>{aggregates.total_net_payable.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</h2>
+              <div className="text-[9px] font-bold text-slate-400 mt-2 flex flex-col relative z-10">
+                <span>Gross: ₹{aggregates.total_spent.toFixed(2)}</span>
+                <span className="text-rose-500">Rec: -₹{aggregates.total_deducted.toFixed(2)}</span>
+              </div>
             </div>
             
             <div className="bg-white rounded-2xl p-4 border border-slate-200 shadow-sm flex flex-col justify-center relative overflow-hidden group/m">
@@ -179,6 +185,9 @@ export default async function CustomerAnalyticsPage(props: {
             </div>
             <Activity className="absolute bottom-4 right-4 w-12 h-12 text-blue-400/20 group-hover:rotate-12 transition-transform" />
           </div>
+
+          <CustomerLoanSection customerId={id} />
+
         </div>
 
         {/* RIGHT COLUMN: ANALYTICS WORKSPACE */}
@@ -237,10 +246,12 @@ export default async function CustomerAnalyticsPage(props: {
                 </div>
               </div>
 
-              <div className="overflow-x-auto">
+              <MultiSelectProvider allIds={txData.data?.map((tx: any) => tx.id) || []}>
+              <div className="overflow-x-auto min-h-[300px]">
                 <table className="w-full text-left text-sm whitespace-nowrap">
-                  <thead className="bg-slate-50/80 text-slate-500 font-bold uppercase text-[10px] tracking-wider border-b border-slate-200">
+                  <thead className="bg-slate-50 text-slate-500 font-bold uppercase text-[10px] tracking-wider sticky top-0 z-10 shadow-sm shadow-slate-100">
                     <tr className="divide-x divide-slate-100">
+                      <th className="px-5 py-4 w-10 text-center"><MultiSelectHeader /></th>
                       {!hiddenCols.includes('col_sno') && <th className="px-5 py-4 text-center w-16">S.No</th>}
                       {!hiddenCols.includes('col_tx_id') && <th className="px-6 py-4">Tx ID</th>}
                       {!hiddenCols.includes('col_date') && <th className="px-6 py-4">Date & Temp</th>}
@@ -259,7 +270,10 @@ export default async function CustomerAnalyticsPage(props: {
                         </td>
                       </tr>
                     ) : txData.data.map((tx, idx) => (
-                      <tr key={tx.id} className="hover:bg-slate-50/50 transition-colors">
+                      <tr key={tx.id} className="border-b border-slate-100/50 hover:bg-slate-50/80 transition-colors group">
+                        <td className="px-5 py-5 text-center align-middle">
+                          <MultiSelectCheckbox id={tx.id} />
+                        </td>
                         {!hiddenCols.includes('col_sno') && (
                           <td className="px-5 py-5 text-center text-slate-300 font-mono text-xs tabular-nums">
                             {offset + idx + 1}
@@ -302,9 +316,27 @@ export default async function CustomerAnalyticsPage(props: {
                           </td>
                         )}
                         {!hiddenCols.includes('col_capital') && (
-                          <td className="px-6 py-5 text-right">
-                            <div className="font-black text-emerald-600 tabular-nums text-base">₹{Number(tx.total_price).toFixed(2)}</div>
+                          <td className="px-6 py-5 text-right align-top">
+                            <div className="font-black text-emerald-600 tabular-nums text-base">₹{Number(tx.net_payable ?? tx.total_price).toFixed(2)}</div>
                             <div className="text-[10px] font-black text-slate-400 mt-0.5 tracking-tighter uppercase leading-none">@ RS.{Number(tx.price_per_litre)}/KG</div>
+                            
+                            {tx.status && tx.status !== 'NORMAL' && (
+                              <div className="mt-2 flex flex-col items-end gap-1">
+                                <div className={`text-[9px] font-bold uppercase tracking-widest px-1.5 py-0.5 rounded inline-block
+                                  ${tx.status === 'LOAN_CLEARED' ? 'bg-emerald-50 text-emerald-600 border border-emerald-100' : 'bg-amber-50 text-amber-600 border border-amber-100'}`}>
+                                  {tx.status === 'LOAN_CLEARED' ? 'Loan Cleared' : 'Loan Adjusted'}
+                                </div>
+                                <div className="text-[10px] font-medium text-slate-500 bg-slate-50 border border-slate-200 px-2 py-1 rounded shadow-sm flex flex-col items-end leading-tight mt-1">
+                                  <span>Gross: ₹{Number(tx.total_price).toFixed(2)}</span>
+                                  <span className="text-rose-500 font-bold">Deduct: -₹{Number(tx.loan_deduction).toFixed(2)}</span>
+                                  {tx.loan_balance_after !== undefined && tx.loan_balance_after !== null && (
+                                    <span className="text-amber-600 font-bold border-t border-slate-200 pt-0.5 mt-0.5 w-full text-right">
+                                      Rem Bal: ₹{Number(tx.loan_balance_after).toFixed(2)}
+                                    </span>
+                                  )}
+                                </div>
+                              </div>
+                            )}
                           </td>
                         )}
                         {!hiddenCols.includes('col_audit') && (
@@ -331,6 +363,7 @@ export default async function CustomerAnalyticsPage(props: {
                   </tbody>
                 </table>
               </div>
+              </MultiSelectProvider>
 
               {/* Table Pagination */}
               <div className="bg-white border-t border-slate-200 p-6 flex flex-col sm:flex-row items-center justify-between gap-4">
@@ -341,6 +374,7 @@ export default async function CustomerAnalyticsPage(props: {
                 <div className="flex items-center gap-2">
                   <Link 
                     href={`/customers/${id}?${new URLSearchParams({...Object.fromEntries(Array.from(new URLSearchParams(Object.entries(searchParams || {})))), page: String(Math.max(1, page - 1))}).toString()}`}
+                    scroll={false}
                     className={`p-2.5 rounded-xl border transition-all ${page === 1 ? 'pointer-events-none opacity-20 bg-slate-50 border-slate-200' : 'bg-white border-slate-200 hover:border-blue-500 hover:text-blue-600 active:scale-95 shadow-sm'}`}
                   >
                     <ChevronLeft className="w-4 h-4" />
@@ -352,6 +386,7 @@ export default async function CustomerAnalyticsPage(props: {
                   </div>
                   <Link 
                     href={`/customers/${id}?${new URLSearchParams({...Object.fromEntries(Array.from(new URLSearchParams(Object.entries(searchParams || {})))), page: String(Math.min(totalPages, page + 1))}).toString()}`}
+                    scroll={false}
                     className={`p-2.5 rounded-xl border transition-all ${page >= totalPages || totalPages === 0 ? 'pointer-events-none opacity-20 bg-slate-50 border-slate-200' : 'bg-white border-slate-200 hover:border-blue-500 hover:text-blue-600 active:scale-95 shadow-sm'}`}
                   >
                     <ChevronRight className="w-4 h-4" />
