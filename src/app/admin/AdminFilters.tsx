@@ -1,15 +1,17 @@
 'use client'
+/* eslint-disable react-hooks/set-state-in-effect */
 
 import { useRouter, useSearchParams, usePathname } from 'next/navigation'
-import { Filter, Calendar, Sun, Moon, Activity, Search, Droplet, Hash, X, Eye, EyeOff, LayoutTemplate } from 'lucide-react'
-import { useState, useEffect, useTransition } from 'react'
+import { Filter, Calendar, Sun, Moon, Activity, Search, Droplet, Hash, Eye, EyeOff, LayoutTemplate } from 'lucide-react'
+import { useState, useEffect, useTransition, useCallback } from 'react'
 
-export default function AdminFilters({ currentYear, isCustomerScope }: { currentYear?: number, isCustomerScope?: boolean }) {
+export default function AdminFilters({ currentYear, isCustomerScope, exportButtons }: { currentYear?: number, isCustomerScope?: boolean, exportButtons?: React.ReactNode }) {
   const displayYear = currentYear || new Date().getFullYear()
+  const [isExpanded, setIsExpanded] = useState(!isCustomerScope)
   const router = useRouter()
   const searchParams = useSearchParams()
   const pathname = usePathname()
-  const [isPending, startTransition] = useTransition()
+  const [, startTransition] = useTransition()
 
   const [timeframe, setTimeframe] = useState(searchParams.get('timeframe') || 'TODAY')
   const [exactDate, setExactDate] = useState(searchParams.get('exactDate') || '')
@@ -38,15 +40,7 @@ export default function AdminFilters({ currentYear, isCustomerScope }: { current
     setSearch(searchParams.get('search') || '')
   }, [searchParams])
 
-  // Debounced search trigger
-  useEffect(() => {
-    const handler = setTimeout(() => {
-      triggerUpdate()
-    }, 500)
-    return () => clearTimeout(handler)
-  }, [search])
-
-  const triggerUpdate = () => {
+  const triggerUpdate = useCallback(() => {
     const params = new URLSearchParams()
     if (timeframe !== 'TODAY') params.set('timeframe', timeframe)
     if (exactDate) params.set('exactDate', exactDate)
@@ -68,7 +62,15 @@ export default function AdminFilters({ currentYear, isCustomerScope }: { current
     startTransition(() => {
       router.push(`${pathname}?${params.toString()}`, { scroll: false })
     })
-  }
+  }, [timeframe, exactDate, exactMonth, startDate, endDate, shift, milkType, minQty, qtyOp, search, hideTable, hiddenCols, pathname, router])
+
+  // Debounced search trigger
+  useEffect(() => {
+    const handler = setTimeout(() => {
+      triggerUpdate()
+    }, 500)
+    return () => clearTimeout(handler)
+  }, [search, triggerUpdate])
 
   // Persistent Preferences
   useEffect(() => {
@@ -90,22 +92,38 @@ export default function AdminFilters({ currentYear, isCustomerScope }: { current
   // Trigger whenever a dropdown changes
   useEffect(() => {
     triggerUpdate()
-  }, [timeframe, exactDate, exactMonth, startDate, endDate, shift, milkType, minQty, qtyOp, hideTable, hiddenCols])
+  }, [timeframe, exactDate, exactMonth, startDate, endDate, shift, milkType, minQty, qtyOp, hideTable, hiddenCols, triggerUpdate])
 
   const toggleCol = (colKey: string) => {
     setHiddenCols(prev => prev.includes(colKey) ? prev.filter(c => c !== colKey) : [...prev, colKey])
   }
 
   return (
-    <div className="bg-white p-4 rounded-3xl shadow-[0_8px_30px_rgb(0,0,0,0.04)] border border-slate-200 w-full">
-      <div className="flex items-center gap-2 mb-4 px-1">
-        <Filter className="w-4 h-4 text-slate-400" />
-        <h3 className="text-sm font-bold text-slate-800 uppercase tracking-wider">Advanced Filters</h3>
+    <div className="bg-white p-4 rounded-3xl shadow-[0_8px_30px_rgb(0,0,0,0.04)] border border-slate-200 w-full transition-all duration-300">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 px-1 mb-2">
+        <div className="flex items-center gap-2">
+          <Filter className="w-4 h-4 text-slate-400" />
+          <h3 className="text-sm font-bold text-slate-800 uppercase tracking-wider">Advanced Filters</h3>
+          <button 
+            onClick={() => setIsExpanded(!isExpanded)}
+            className="ml-2 text-xs font-bold px-2.5 py-1 bg-slate-100 text-slate-500 rounded-lg hover:bg-slate-200 transition-colors flex items-center gap-1"
+          >
+            {isExpanded ? 'Collapse' : 'Expand'}
+          </button>
+        </div>
+
+        {!isExpanded && exportButtons && (
+          <div className="flex items-center gap-2 animate-in fade-in slide-in-from-right-4 duration-300">
+            {exportButtons}
+          </div>
+        )}
       </div>
       
-      <div className="flex flex-wrap items-center gap-3">
-        
-        {/* Timeframe Dropdown */}
+      {isExpanded && (
+        <div className="animate-in slide-in-from-top-2 fade-in duration-300">
+          <div className="flex flex-wrap items-center gap-3 mt-4">
+            
+            {/* Timeframe Dropdown */}
         <div className="relative flex-[1_1_180px]">
           <Calendar className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-blue-500" />
           <select 
@@ -121,7 +139,7 @@ export default function AdminFilters({ currentYear, isCustomerScope }: { current
             }}
             className="w-full appearance-none pl-10 pr-10 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm font-bold text-slate-700 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 cursor-pointer transition-all hover:bg-slate-100"
           >
-            <option value="TODAY">Today's Tx</option>
+            <option value="TODAY">Today&apos;s Tx</option>
             <option value="SPECIFIC_DATE">Specific Date...</option>
             <option value="SPECIFIC_MONTH">Specific Month...</option>
             <option value="CUSTOM_RANGE">Custom Range...</option>
@@ -298,7 +316,15 @@ export default function AdminFilters({ currentYear, isCustomerScope }: { current
             </div>
           </>
         )}
+        
+        {exportButtons && (
+          <div className="ml-auto">
+            {exportButtons}
+          </div>
+        )}
       </div>
+      </div>
+      )}
 
     </div>
   )

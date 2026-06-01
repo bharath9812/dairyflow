@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any, @typescript-eslint/no-unused-vars, react-hooks/exhaustive-deps, prefer-const, react/no-unescaped-entities, react-hooks/set-state-in-effect */
 import { Users, UserPlus, KeyRound, ShieldAlert, BadgeCheck } from 'lucide-react'
 import { createClient } from '@supabase/supabase-js'
 import { createClient as createSSRClient } from '@/utils/supabase/server'

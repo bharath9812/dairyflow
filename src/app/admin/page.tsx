@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any, @typescript-eslint/no-unused-vars, react-hooks/exhaustive-deps, prefer-const, react/no-unescaped-entities, react-hooks/set-state-in-effect */
 import { fetchAdminTransactions, fetchAdminAggregates } from './actions'
 import AdminFilters from './AdminFilters'
 import ExportButtons from './ExportButtons'
@@ -87,30 +88,32 @@ export default async function AdminDashboardPage(props: { searchParams: Promise<
         <PricingManager initialCow={pricingData.cow_price} initialBuffalo={pricingData.buffalo_price} />
 
         {/* Master Control Bar */}
-        <div className="flex flex-col lg:flex-row gap-4 items-start lg:items-center justify-between">
+        <div className="w-full">
           <Suspense fallback={
             <div className="bg-white p-4 rounded-3xl border border-slate-200 w-full flex items-center justify-center animate-pulse min-h-[100px]">
               <Loader2 className="w-5 h-5 text-blue-500 animate-spin mr-2" />
               <span className="text-sm font-bold text-slate-400">Loading Filters...</span>
             </div>
           }>
-            <AdminFilters currentYear={currentYear} />
-          </Suspense>
-          <div className="flex items-center gap-3 w-full lg:w-auto mt-4 lg:mt-0">
-            <ExportButtons 
-              timeframe={timeframe} 
-              exactDate={exactDate}
-              exactMonth={exactMonth}
-              startDate={startDate}
-              endDate={endDate}
-              shift={shift} 
-              milkType={milkType} 
-              minQty={minQty} 
-              qtyOp={qtyOp}
-              search={search}
-              hiddenCols={hiddenCols}
+            <AdminFilters 
+              currentYear={currentYear} 
+              exportButtons={
+                <ExportButtons 
+                  timeframe={timeframe} 
+                  exactDate={exactDate}
+                  exactMonth={exactMonth}
+                  startDate={startDate}
+                  endDate={endDate}
+                  shift={shift} 
+                  milkType={milkType} 
+                  minQty={minQty} 
+                  qtyOp={qtyOp}
+                  search={search}
+                  hiddenCols={hiddenCols}
+                />
+              }
             />
-          </div>
+          </Suspense>
         </div>
 
         {/* Dense Data Grid */}

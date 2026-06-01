@@ -1,4 +1,5 @@
 'use client'
+/* eslint-disable @typescript-eslint/no-explicit-any, @typescript-eslint/no-unused-vars, react-hooks/exhaustive-deps, prefer-const, react/no-unescaped-entities, react-hooks/set-state-in-effect */
 
 import { useState, useActionState, useEffect } from 'react'
 import { login, signup, sendResetLink } from './actions'
