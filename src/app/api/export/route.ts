@@ -122,10 +122,30 @@ export async function GET(request: Request) {
       })
     ].join('\n')
 
+    let sellerComponent = "Global"
+    if (customerId && data.length > 0) {
+      const name = data[0].customers?.name?.replace(/\s+/g, '') || "Seller"
+      const id = String(data[0].customers?.seller_id).padStart(3, '0')
+      sellerComponent = `${name}_${id}`
+    }
+
+    let dateComponent = timeframe
+    if (timeframe === "SPECIFIC_DATE") dateComponent = exactDate || "Date"
+    if (timeframe === "SPECIFIC_MONTH") dateComponent = exactMonth || "Month"
+    if (timeframe === "CUSTOM_RANGE") dateComponent = `${startDate}_to_${endDate}`
+    if (timeframe === "TODAY") dateComponent = "Today"
+    if (timeframe === "MONTHLY") dateComponent = "Monthly"
+    if (timeframe === "MONTH_FIRST_HALF") dateComponent = "FirstHalf"
+    if (timeframe === "MONTH_SECOND_HALF") dateComponent = "SecondHalf"
+    if (timeframe === "ALL_TIME") dateComponent = "AllTime"
+
+    const shiftComponent = shift === "ALL" ? "AllShifts" : shift
+    const finalFileName = `DairyFlow_${sellerComponent}_${dateComponent}_${shiftComponent}.csv`
+
     return new NextResponse(csvContent, {
       headers: {
         'Content-Type': 'text/csv',
-        'Content-Disposition': `attachment; filename="DairyFlow_Export_${timeframe}_${shift}.csv"`
+        'Content-Disposition': `attachment; filename="${finalFileName}"`
       }
     })
   }

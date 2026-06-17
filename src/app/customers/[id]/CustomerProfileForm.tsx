@@ -1,7 +1,7 @@
 'use client'
 
-import React, { useState } from 'react'
-import { User, Phone, MapPin, Save, Loader2 } from 'lucide-react'
+import React, { useState, useEffect } from 'react'
+import { User, Phone, MapPin, Save, Loader2, ChevronUp } from 'lucide-react'
 import { updateCustomerDetails } from './actions'
 
 interface ProfileProps {
@@ -14,10 +14,24 @@ interface ProfileProps {
 
 export default function CustomerProfileForm({ id, initialSellerId, initialName, initialContact, initialLocation }: ProfileProps) {
   const [saving, setSaving] = useState(false)
+  const [expanded, setExpanded] = useState(false)
   const [sellerId, setSellerId] = useState(initialSellerId)
-  const [name, setName] = useState(initialName)
-  const [contact, setContact] = useState(initialContact)
-  const [location, setLocation] = useState(initialLocation)
+  const [name, setName] = useState(initialName || '')
+  const [contact, setContact] = useState(initialContact || '')
+  const [location, setLocation] = useState(initialLocation || '')
+
+  useEffect(() => {
+    const savedState = localStorage.getItem(`customer-profile-expanded-${id}`)
+    if (savedState) {
+      setExpanded(savedState === 'true')
+    }
+  }, [id])
+
+  const toggleExpanded = () => {
+    const newState = !expanded
+    setExpanded(newState)
+    localStorage.setItem(`customer-profile-expanded-${id}`, String(newState))
+  }
 
   const handleUpdate = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -40,61 +54,79 @@ export default function CustomerProfileForm({ id, initialSellerId, initialName, 
   }
 
   return (
-    <div className="bg-white rounded-3xl border border-slate-200 shadow-sm p-6 lg:p-8">
-      <h3 className="text-xs font-black uppercase tracking-widest text-slate-400 mb-6 border-b border-slate-100 pb-3 flex items-center justify-between">
-        Account Identity
-        <span className="text-blue-500 lowercase">#{id.slice(0, 8)}</span>
-      </h3>
-
-      <form onSubmit={handleUpdate} className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-1 gap-5">
-        
-        <div className="space-y-1.5">
-          <label className="text-xs font-bold text-slate-500 uppercase tracking-tighter flex items-center gap-2">
-            <User className="w-3.5 h-3.5 text-blue-500" /> Seller ID Number
-          </label>
-          <input
-            type="number" required value={sellerId} onChange={e => setSellerId(e.target.value)}
-            className="w-full rounded-xl border border-slate-200 bg-slate-50 px-4 py-2.5 text-slate-800 font-black focus:border-blue-600 focus:ring-4 focus:ring-blue-600/5 transition-all outline-none"
-          />
+    <div className="bg-white/70 backdrop-blur-2xl border border-white/40 rounded-xl p-5 flex flex-col shadow-sm">
+      
+      {/* Collapsible Header */}
+      <div 
+        onClick={toggleExpanded} 
+        className="flex justify-between items-center cursor-pointer mb-2"
+      >
+        <h3 className="text-xs font-bold text-slate-500 uppercase tracking-wider">Account Identity</h3>
+        <div className="flex items-center gap-2">
+          {!expanded && <span className="text-[10px] text-slate-400 italic mr-1">Expand to edit details</span>}
+          <span className="text-xs font-mono text-teal-600">#{id.slice(0, 8)}</span>
+          <ChevronUp className={`w-4 h-4 text-slate-400 transition-transform duration-300 ${expanded ? '' : 'rotate-180'}`} />
         </div>
+      </div>
 
-        <div className="space-y-1.5">
-          <label className="text-xs font-bold text-slate-500 uppercase tracking-tighter flex items-center gap-2">
-            <User className="w-3.5 h-3.5 text-blue-500" /> Full Name
-          </label>
-          <input
-            type="text" value={name} onChange={e => setName(e.target.value)}
-            className="w-full rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-slate-800 font-bold focus:border-blue-600 focus:ring-4 focus:ring-blue-600/5 transition-all outline-none"
-          />
-        </div>
+      {/* Expandable Content */}
+      {expanded && (
+        <form onSubmit={handleUpdate} className="flex flex-col gap-3 pt-2 animate-in fade-in slide-in-from-top-2 duration-300">
+          
+          {/* Seller ID */}
+          <div>
+            <label className="text-xs text-slate-500 font-medium flex items-center gap-1 mb-1">
+              <User className="w-3.5 h-3.5" /> SELLER ID NUMBER
+            </label>
+            <input
+              type="number" required value={sellerId} onChange={e => setSellerId(e.target.value)}
+              className="w-full bg-slate-100 text-onyx text-sm p-2 rounded-md border border-slate-200/50 focus:outline-none cursor-default font-mono"
+              readOnly
+            />
+          </div>
 
-        <div className="space-y-1.5">
-          <label className="text-xs font-bold text-slate-500 uppercase tracking-tighter flex items-center gap-2">
-            <Phone className="w-3.5 h-3.5 text-blue-500" /> Contact Number
-          </label>
-          <input
-            type="text" value={contact} onChange={e => setContact(e.target.value)}
-            className="w-full rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-slate-800 font-bold focus:border-blue-600 focus:ring-4 focus:ring-blue-600/5 transition-all outline-none"
-          />
-        </div>
+          {/* Full Name */}
+          <div>
+            <label className="text-xs text-slate-500 font-medium flex items-center gap-1 mb-1">
+              <User className="w-3.5 h-3.5" /> FULL NAME
+            </label>
+            <input
+              type="text" value={name} onChange={e => setName(e.target.value)}
+              className="w-full bg-white text-onyx text-sm p-2 rounded-md border border-slate-200 focus:border-teal-500 focus:ring-1 focus:ring-teal-500 outline-none transition-all"
+            />
+          </div>
 
-        <div className="space-y-1.5">
-          <label className="text-xs font-bold text-slate-500 uppercase tracking-tighter flex items-center gap-2">
-            <MapPin className="w-3.5 h-3.5 text-blue-500" /> Location / Village
-          </label>
-          <input
-            type="text" value={location} onChange={e => setLocation(e.target.value)}
-            className="w-full rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-slate-800 font-bold focus:border-blue-600 focus:ring-4 focus:ring-blue-600/5 transition-all outline-none"
-          />
-        </div>
+          {/* Contact Number */}
+          <div>
+            <label className="text-xs text-slate-500 font-medium flex items-center gap-1 mb-1">
+              <Phone className="w-3.5 h-3.5" /> CONTACT NUMBER
+            </label>
+            <input
+              type="text" value={contact} onChange={e => setContact(e.target.value)}
+              className="w-full bg-white text-onyx text-sm p-2 rounded-md border border-slate-200 focus:border-teal-500 focus:ring-1 focus:ring-teal-500 outline-none transition-all font-mono"
+            />
+          </div>
 
-        <button
-          type="submit" disabled={saving}
-          className="xl:col-span-1 md:col-span-2 w-full bg-slate-900 hover:bg-black text-white font-black py-3.5 mt-2 rounded-xl shadow-lg shadow-slate-200 transition-all active:scale-95 flex justify-center items-center gap-2 disabled:bg-slate-300 disabled:shadow-none"
-        >
-          {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : <><Save className="w-3.5 h-3.5" /> Save Profile Changes</>}
-        </button>
-      </form>
+          {/* Location */}
+          <div>
+            <label className="text-xs text-slate-500 font-medium flex items-center gap-1 mb-1">
+              <MapPin className="w-3.5 h-3.5" /> LOCATION / VILLAGE
+            </label>
+            <input
+              type="text" value={location} onChange={e => setLocation(e.target.value)}
+              className="w-full bg-white text-onyx text-sm p-2 rounded-md border border-slate-200 focus:border-teal-500 focus:ring-1 focus:ring-teal-500 outline-none transition-all"
+            />
+          </div>
+
+          {/* Save Button */}
+          <button
+            type="submit" disabled={saving}
+            className="w-full bg-onyx text-white font-medium text-sm py-2.5 rounded-lg flex items-center justify-center gap-2 hover:opacity-90 transition-colors shadow-sm disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : <><Save className="w-4 h-4" /> Save Profile Changes</>}
+          </button>
+        </form>
+      )}
     </div>
   )
 }

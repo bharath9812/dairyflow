@@ -30,6 +30,7 @@ export async function updatePricing(formData: FormData) {
   }
 
   revalidatePath('/admin')
+  revalidatePath('/admin/pricing')
   revalidatePath('/')
   
   return { success: 'Pricing updated successfully.' }

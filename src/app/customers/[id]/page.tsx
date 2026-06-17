@@ -10,6 +10,7 @@ import { MultiSelectProvider, MultiSelectHeader, MultiSelectCheckbox } from '@/c
 import TransactionActionCell from '@/components/TransactionActionCell'
 import CustomerProfileForm from './CustomerProfileForm'
 import CustomerLoanSection from './CustomerLoanSection'
+import { TransactionViewModeWrapper } from '@/components/TransactionViewModeWrapper'
 
 export default async function CustomerAnalyticsPage(props: { 
   params: Promise<{ id: string }>,
@@ -46,38 +47,40 @@ export default async function CustomerAnalyticsPage(props: {
   const hideTable = searchParams?.hideTable === 'true'
   const hiddenCols = (searchParams?.hiddenCols || '').split(',').filter(Boolean)
   const page = parseInt(searchParams?.page || '1', 10)
-  const limit = 10
+  const limit = 20
   const offset = (page - 1) * limit
   const currentYear = new Date().getFullYear()
 
   const supabase = await createClient()
 
-  // 1. Fetch Profile
-  const { data: profile } = await supabase.from('customers').select('*').eq('id', id).single()
-
-  // 2. Fetch Analytics (Scoped to this customer)
-  const [aggregates, txData] = await Promise.all([
+  // Fire parallel queries to Supabase
+  const [profileRes, aggregates, txData] = await Promise.all([
+    supabase.from('customers').select('*').eq('id', id).single(),
     fetchAdminAggregates({ timeframe, shift, milkType, minQty, qtyOp, search, exactDate, exactMonth, startDate, endDate, customerId: id }),
     fetchAdminTransactions({ timeframe, shift, milkType, minQty, qtyOp, search, exactDate, exactMonth, startDate, endDate, customerId: id, limit, offset })
   ])
 
+  const profile = profileRes.data
+
   // Compute Scoped Summary Stats
-  const totalVol = aggregates.total_bought
-  const totalPrice = aggregates.total_spent
-  const morningVol = aggregates.morning_bought
-  const eveningVol = aggregates.evening_bought
+  const totalVol = aggregates.total_bought ?? 0
+  const totalPrice = aggregates.total_spent ?? 0
+  const morningVol = aggregates.morning_bought ?? 0
+  const morningPrice = aggregates.morning_spent ?? 0
+  const eveningVol = aggregates.evening_bought ?? 0
+  const eveningPrice = aggregates.evening_spent ?? 0
   const avgPrice = totalVol > 0 ? totalPrice / totalVol : 0
 
   const totalPages = Math.ceil((txData.count ?? 0) / limit)
 
   if (!profile) {
     return (
-      <div className="min-h-screen bg-slate-50 flex flex-col items-center justify-center p-8 text-center">
-        <div className="bg-red-50 text-red-600 p-6 rounded-3xl border border-red-100 max-w-md">
+      <div className="min-h-screen bg-surface flex flex-col items-center justify-center p-8 text-center">
+        <div className="bg-red-50 text-red-600 p-6 rounded-xl border border-red-100 max-w-md">
           <Activity className="w-12 h-12 mx-auto mb-4 opacity-50" />
           <h1 className="text-xl font-black mb-2">Customer Not Found</h1>
           <p className="text-sm font-bold opacity-75 mb-6">The seller record you are looking for does not exist or has been removed.</p>
-          <Link href="/customers" className="inline-flex items-center gap-2 bg-red-600 text-white px-6 py-3 rounded-xl font-black shadow-lg shadow-red-200">
+          <Link href="/customers" className="inline-flex items-center gap-2 bg-onyx text-white px-6 py-3 rounded-lg font-black shadow-sm">
             <ArrowLeft className="w-4 h-4" /> Back to Directory
           </Link>
         </div>
@@ -86,47 +89,56 @@ export default async function CustomerAnalyticsPage(props: {
   }
 
   return (
-    <div className="min-h-[100dvh] bg-slate-50 flex flex-col font-sans text-slate-900 selection:bg-blue-100">
+    <div className="h-screen bg-surface flex flex-col font-sans text-on-surface overflow-hidden antialiased">
 
-      {/* Header Overlay */}
-      <header className="bg-white/80 backdrop-blur-md border-b border-slate-200/60 px-6 lg:px-12 py-5 flex items-center justify-between sticky top-0 z-30 shadow-sm">
-        <div className="flex items-center gap-3">
-          <div className="bg-blue-600 p-2.5 rounded-xl text-white shadow-lg shadow-blue-200 ring-4 ring-blue-50">
-            <Droplets className="w-5 h-5 animate-pulse" />
+      {/* Top NavBar */}
+      <header className="bg-white border-b border-slate-200 flex justify-between items-center w-full px-8 py-2 shrink-0 h-16 z-20 relative shadow-sm">
+        <div className="flex items-center gap-4">
+          <div className="flex items-center justify-center w-8 h-8 rounded-md bg-onyx text-white">
+            <Droplets className="w-4 h-4" />
           </div>
-          <div className="flex flex-col">
-            <h1 className="text-xl font-black tracking-tight leading-none text-slate-900">
-              Customer<span className="text-blue-600 font-black">Portal</span>
-            </h1>
-            <span className="text-[10px] font-black text-slate-400 tracking-widest uppercase mt-1">DairyFlow.Admin / Scoped</span>
+          <div>
+            <h1 className="text-base font-black text-onyx leading-tight">CustomerPortal</h1>
+            <p className="text-[10px] text-slate-500 font-mono font-bold uppercase tracking-widest">DairyFlow.Admin / Scoped</p>
           </div>
         </div>
-        
+
+        {/* Center Pill Tabs */}
+        <div className="flex bg-slate-100 p-1.5 rounded-2xl border border-slate-200/30">
+          <Link href="/" className="px-6 py-2 text-slate-500 hover:text-onyx transition-colors text-sm font-bold">Standard Dashboard</Link>
+          <Link href="/admin" className="px-6 py-2 bg-white text-onyx rounded-xl text-sm font-bold shadow-sm">Admin Terminal</Link>
+        </div>
+
+        {/* Right Nav */}
         <div className="flex items-center gap-6">
-          <Link href="/customers" className="flex items-center gap-2 text-slate-500 hover:text-blue-600 font-bold transition-all text-sm group">
-            <ArrowLeft className="w-4 h-4 group-hover:-translate-x-1 transition-transform" /> 
-            <span className="hidden sm:inline italic text-xs">Exit to Directory</span>
+          <Link href="/customers" className="text-slate-500 hover:text-onyx transition-colors flex items-center gap-2 text-sm font-medium">
+            <ArrowLeft className="w-4 h-4" />
+            Exit to Directory
           </Link>
-          <div className="w-px h-6 bg-slate-200 hidden md:block"></div>
-          <button className="flex items-center gap-2 text-red-600 hover:text-red-700 bg-red-50 hover:bg-red-100 px-4 py-2 rounded-xl transition-all font-black text-sm ring-4 ring-red-50/50">
-            <LogOut className="w-4 h-4" /> <span className="hidden sm:inline">Logout</span>
+          <div className="h-6 w-px bg-slate-200"></div>
+          <button className="text-red-600 hover:bg-red-50 px-4 py-2 rounded-md transition-colors flex items-center gap-2 text-sm font-medium border border-red-200/50">
+            <LogOut className="w-4 h-4" />
+            Logout
           </button>
         </div>
       </header>
 
-      <main className="flex-1 flex flex-col xl:flex-row w-full max-w-[1700px] mx-auto p-6 lg:p-10 gap-8 items-start">
-
-        {/* LEFT COLUMN: IDENTITY & KPIS */}
-        <div className="w-full xl:w-[400px] flex flex-col gap-6 sticky xl:top-28">
+      {/* Main Layout: Left Panel + Right Content */}
+      <main className="flex-1 flex overflow-hidden">
+        
+        {/* Left Panel: Profile & Identity */}
+        <aside className="w-80 h-full overflow-y-auto no-scrollbar border-r border-slate-200 bg-white p-6 flex flex-col gap-6 shrink-0 relative z-10">
           
-          <div className="flex items-center gap-3 mb-2 px-1">
-            <div className="w-1.5 h-10 bg-blue-600 rounded-full shadow-sm"></div>
-            <div>
-              <h2 className="text-2xl font-black text-slate-900 tracking-tight leading-tight">{profile.name}</h2>
-              <p className="text-[10px] font-black text-blue-600 uppercase tracking-[0.2em]">{profile.location || 'Central Region'}</p>
+          {/* Customer Name Header */}
+          <div>
+            <div className="flex items-center gap-3 mb-1">
+              <div className="w-1.5 h-6 bg-teal-600 rounded-full"></div>
+              <h2 className="text-2xl font-black text-onyx">{profile.name}</h2>
             </div>
+            <p className="text-sm font-mono font-bold text-teal-600 uppercase tracking-wider ml-[18px]">{profile.location || 'Central Region'}</p>
           </div>
 
+          {/* Account Identity Card */}
           <CustomerProfileForm 
             id={id}
             initialSellerId={String(profile.seller_id)}
@@ -135,272 +147,270 @@ export default async function CustomerAnalyticsPage(props: {
             initialLocation={profile.location || ''}
           />
 
-          {/* SCOPED ANALYTICS TILES */}
-          <div className="grid grid-cols-2 gap-4">
-            <div className="bg-white rounded-2xl p-5 border border-slate-200 shadow-sm relative overflow-hidden group/tile">
-              <div className="absolute -right-4 -top-4 w-20 h-20 bg-blue-50 rounded-full blur-2xl opacity-60 group-hover/tile:scale-110 transition-transform"></div>
-              <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1 relative z-10">Total Volume</p>
-              <h2 className="text-2xl font-black text-slate-800 tracking-tight relative z-10">{totalVol.toFixed(1)} <span className="text-sm text-slate-400">L</span></h2>
-            </div>
-            <div className="bg-white rounded-2xl p-5 border border-slate-200 shadow-sm relative overflow-hidden group/tile flex flex-col justify-between">
-              <div className="absolute -right-4 -top-4 w-20 h-20 bg-emerald-50 rounded-full blur-2xl opacity-60 group-hover/tile:scale-110 transition-transform"></div>
-              <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1 relative z-10">Net Payable</p>
-              <h2 className="text-2xl font-black text-slate-800 tracking-tight relative z-10"><span className="text-emerald-500 mr-0.5">₹</span>{aggregates.total_net_payable.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</h2>
-              <div className="text-[9px] font-bold text-slate-400 mt-2 flex flex-col relative z-10">
-                <span>Gross: ₹{aggregates.total_spent.toFixed(2)}</span>
-                <span className="text-rose-500">Rec: -₹{aggregates.total_deducted.toFixed(2)}</span>
-              </div>
-            </div>
-            
-            <div className="bg-white rounded-2xl p-4 border border-slate-200 shadow-sm flex flex-col justify-center relative overflow-hidden group/m">
-              <div className="flex items-center justify-between mb-2">
-                <div className="flex items-center gap-1.5 text-[10px] font-black uppercase tracking-wider text-amber-600 bg-amber-50 px-2 py-0.5 rounded">
-                  <Sun className="w-3.5 h-3.5" /> Morning
-                </div>
-              </div>
-              <div className="flex items-end justify-between relative z-10">
-                <p className="text-base font-black text-slate-800">{morningVol.toFixed(1)}<span className="text-[10px] text-slate-400 ml-0.5">L</span></p>
-                <div className="w-1 h-1 rounded-full bg-amber-200 group-hover/m:scale-150 transition-transform"></div>
-              </div>
-            </div>
-
-            <div className="bg-white rounded-2xl p-4 border border-slate-200 shadow-sm flex flex-col justify-center relative overflow-hidden group/e">
-              <div className="flex items-center justify-between mb-2">
-                <div className="flex items-center gap-1.5 text-[10px] font-black uppercase tracking-wider text-indigo-600 bg-indigo-50 px-2 py-0.5 rounded">
-                  <Moon className="w-3.5 h-3.5" /> Evening
-                </div>
-              </div>
-              <div className="flex items-end justify-between relative z-10">
-                <p className="text-base font-black text-slate-800">{eveningVol.toFixed(1)}<span className="text-[10px] text-slate-400 ml-0.5">L</span></p>
-                <div className="w-1 h-1 rounded-full bg-indigo-200 group-hover/e:scale-150 transition-transform"></div>
-              </div>
-            </div>
-          </div>
-
-          <div className="bg-blue-600 rounded-3xl p-6 text-white shadow-xl shadow-blue-200 relative overflow-hidden group">
-            <div className="absolute top-0 right-0 w-32 h-32 bg-white/10 rounded-full blur-3xl -translate-y-1/2 translate-x-1/2 group-hover:scale-125 transition-transform duration-1000"></div>
-            <p className="text-[10px] font-black uppercase tracking-[0.2em] text-blue-100/60 mb-1">Average Rate Scoped</p>
-            <div className="flex items-baseline gap-1">
-              <span className="text-4xl font-black tabular-nums tracking-tighter">₹{avgPrice.toFixed(2)}</span>
-              <span className="text-xs font-bold text-blue-200">/per kg</span>
-            </div>
-            <Activity className="absolute bottom-4 right-4 w-12 h-12 text-blue-400/20 group-hover:rotate-12 transition-transform" />
-          </div>
-
+          {/* Advance / Loans */}
           <CustomerLoanSection customerId={id} />
 
-        </div>
+        </aside>
 
-        {/* RIGHT COLUMN: ANALYTICS WORKSPACE */}
-        <div className="flex-1 flex flex-col gap-6 w-full min-w-0">
+        {/* Right Content Area: Transactions */}
+        <section className="flex-1 bg-slate-50 flex flex-col relative overflow-hidden min-h-0">
+          <div className="flex-1 p-6 flex flex-col gap-6 overflow-hidden min-h-0">
           
-          <div className="flex flex-col lg:flex-row gap-4 items-start lg:items-center justify-between bg-white/50 p-2 rounded-3xl border border-dashed border-slate-200">
-            <div className="w-full">
-              <Suspense fallback={
-                <div className="bg-white p-6 rounded-3xl border border-slate-200 animate-pulse flex items-center justify-center min-h-[100px]">
-                  <Loader2 className="w-5 h-5 text-blue-500 animate-spin mr-2" />
-                  <span className="text-xs font-black text-slate-400 tracking-widest uppercase">Initializing Analysis Engine...</span>
-                </div>
-              }>
-                <AdminFilters 
-                  currentYear={currentYear} 
-                  isCustomerScope={true} 
-                  exportButtons={
-                    <ExportButtons 
-                      timeframe={timeframe} 
-                      exactDate={exactDate}
-                      exactMonth={exactMonth}
-                      startDate={startDate}
-                      endDate={endDate}
-                      shift={shift} 
-                      milkType={milkType} 
-                      minQty={minQty} 
-                      qtyOp={qtyOp}
-                      search={search}
-                      hiddenCols={hiddenCols}
-                      customerId={id}
+            {!hideTable && (
+              <TransactionViewModeWrapper
+                topSection={
+                  <Suspense key="top-section" fallback={
+                    <div className="bg-white p-4 rounded-3xl border border-slate-200 w-full flex items-center justify-center animate-pulse min-h-[100px]">
+                      <Loader2 className="w-5 h-5 text-blue-500 animate-spin mr-2" />
+                      <span className="text-sm font-bold text-slate-400">Loading Filters...</span>
+                    </div>
+                  }>
+                    <AdminFilters 
+                      currentYear={currentYear} 
+                      isCustomerScope={true} 
+                      exportButtons={
+                        <ExportButtons 
+                          timeframe={timeframe} 
+                          exactDate={exactDate}
+                          exactMonth={exactMonth}
+                          startDate={startDate}
+                          endDate={endDate}
+                          shift={shift} 
+                          milkType={milkType} 
+                          minQty={minQty} 
+                          qtyOp={qtyOp}
+                          search={search}
+                          hiddenCols={hiddenCols}
+                          customerId={id}
+                        />
+                      }
                     />
-                  }
-                />
-              </Suspense>
-            </div>
-          </div>
+                  </Suspense>
+                }
+                bottomSection={
+                  <div key="bottom-section" className="grid grid-cols-1 md:grid-cols-4 gap-4 shrink-0 w-full">
+                    <div className="bg-white/80 backdrop-blur-2xl border border-white/40 rounded-xl p-4 flex flex-col justify-between shadow-sm relative overflow-hidden group">
+                      <div className="text-sm font-semibold text-slate-500 z-10">Total Milk Bought</div>
+                      <div className="flex items-baseline gap-1 mt-2 z-10">
+                        <span className="text-3xl font-bold text-onyx tracking-tight">{totalVol.toFixed(1)}</span>
+                        <span className="text-lg font-bold text-slate-500">L</span>
+                      </div>
+                      <div className="absolute -right-4 -bottom-4 opacity-[0.03] z-0 transition-transform group-hover:scale-110">
+                        <Database className="w-32 h-32" />
+                      </div>
+                    </div>
 
-          <div className="flex items-center justify-between px-2">
-            <div>
-              <h2 className="text-xl font-black text-slate-800 tracking-tight flex items-center gap-3">
-                Transaction Archive
-                <span className="bg-blue-600 text-white text-[10px] font-black px-3 py-1.5 rounded-full shadow-lg shadow-blue-200 ring-2 ring-blue-50">
-                  {txData.count} Records
-                </span>
-              </h2>
-            </div>
-          </div>
+                    <div className="bg-white/80 backdrop-blur-2xl border border-white/40 rounded-xl p-4 flex flex-col justify-between shadow-sm relative overflow-hidden group">
+                      <div className="text-sm font-semibold text-slate-500 z-10">Capital Deployed</div>
+                      <div className="flex items-baseline gap-1 mt-2 z-10">
+                        <span className="text-3xl font-bold text-emerald-600 tracking-tight">₹{totalPrice.toFixed(2)}</span>
+                      </div>
+                      <div className="absolute -right-4 -bottom-4 opacity-[0.03] z-0 transition-transform group-hover:scale-110">
+                        <Database className="w-32 h-32" />
+                      </div>
+                    </div>
 
-          {!hideTable && (
-            <div className="bg-white rounded-3xl border border-slate-200 shadow-sm overflow-hidden flex flex-col group/table">
-              <div className="px-6 py-5 border-b border-slate-100 flex items-center gap-3">
-                <div className="p-2 bg-blue-50 text-blue-600 rounded-lg">
-                  <Database className="w-5 h-5" />
-                </div>
-                <div>
-                  <h2 className="text-sm font-black text-slate-800 uppercase tracking-wider">Scoped Records</h2>
-                  <p className="text-[10px] font-bold text-slate-400 uppercase tracking-tighter italic">Historical logs for {profile.name}</p>
-                </div>
-              </div>
+                    <div className="bg-white/80 backdrop-blur-2xl border border-white/40 rounded-xl p-4 flex flex-col justify-between shadow-sm relative overflow-hidden group">
+                      <div className="flex items-center gap-1.5 text-sm font-semibold text-amber-500 z-10 uppercase tracking-wide">
+                        <Sun className="w-4 h-4" />
+                        Morning
+                      </div>
+                      <div className="flex items-end justify-between mt-2 z-10">
+                        <div className="flex items-baseline gap-1">
+                          <span className="text-3xl font-bold text-onyx tracking-tight">{morningVol.toFixed(1)}</span>
+                          <span className="text-lg font-bold text-slate-500">L</span>
+                        </div>
+                        <div className="text-sm font-bold text-emerald-600 mb-1">
+                          ₹{morningPrice.toFixed(0)}
+                        </div>
+                      </div>
+                    </div>
 
-              <MultiSelectProvider allIds={txData.data?.map((tx: any) => tx.id) || []}>
-              <div className="overflow-x-auto min-h-[300px]">
-                <table className="w-full text-left text-sm whitespace-nowrap">
-                  <thead className="bg-slate-50 text-slate-500 font-bold uppercase text-[10px] tracking-wider sticky top-0 z-10 shadow-sm shadow-slate-100">
-                    <tr className="divide-x divide-slate-100">
-                      <th className="px-5 py-4 w-10 text-center"><MultiSelectHeader /></th>
-                      {!hiddenCols.includes('col_sno') && <th className="px-5 py-4 text-center w-16">S.No</th>}
-                      {!hiddenCols.includes('col_tx_id') && <th className="px-6 py-4">Tx ID</th>}
-                      {!hiddenCols.includes('col_date') && <th className="px-6 py-4">Date & Temp</th>}
-                      {!hiddenCols.includes('col_type') && <th className="px-6 py-4">Commodity</th>}
-                      {!hiddenCols.includes('col_volume') && <th className="px-6 py-4 text-right">Volume</th>}
-                      {!hiddenCols.includes('col_capital') && <th className="px-6 py-4 text-right">Capital Out</th>}
-                      {!hiddenCols.includes('col_audit') && <th className="px-6 py-4 text-left">Audit Footprint</th>}
-                      <th className="px-4 py-4 text-right w-20">Actions</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-slate-100">
-                    {txData.data.length === 0 ? (
+                    <div className="bg-white/80 backdrop-blur-2xl border border-white/40 rounded-xl p-4 flex flex-col justify-between shadow-sm relative overflow-hidden group">
+                      <div className="flex items-center gap-1.5 text-sm font-semibold text-indigo-500 z-10 uppercase tracking-wide">
+                        <Moon className="w-4 h-4" />
+                        Evening
+                      </div>
+                      <div className="flex items-end justify-between mt-2 z-10">
+                        <div className="flex items-baseline gap-1">
+                          <span className="text-3xl font-bold text-onyx tracking-tight">{eveningVol.toFixed(1)}</span>
+                          <span className="text-lg font-bold text-slate-500">L</span>
+                        </div>
+                        <div className="text-sm font-bold text-emerald-600 mb-1">
+                          ₹{eveningPrice.toFixed(0)}
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                }
+                headerLeft={
+                  <div key="header-left" className="flex items-center gap-3">
+                    <div className="p-2 bg-sky-100 text-sky-700 rounded-lg">
+                      <Database className="w-5 h-5" />
+                    </div>
+                    <div>
+                      <h2 className="text-lg font-bold text-onyx leading-tight">Transaction Archive</h2>
+                      <p className="text-sm font-medium text-slate-500">{txData.count} entries found for {profile.name}</p>
+                    </div>
+                  </div>
+                }
+              >
+                <div className="contents" key="wrapper-content">
+                <MultiSelectProvider allIds={txData.data?.map((tx: any) => tx.id) || []}>
+                <div className="relative flex-1 flex flex-col min-h-0 overflow-hidden">
+                  <div className="flex-1 min-h-0 overflow-y-auto overflow-x-auto custom-scrollbar">
+                  <table className="w-full text-left border-collapse min-w-[800px]">
+                    <thead className="sticky top-0 z-10 bg-white/95 backdrop-blur-sm border-b border-slate-200 text-slate-500 font-semibold uppercase text-xs tracking-wider">
                       <tr>
-                        <td colSpan={10} className="px-8 py-24 text-center text-slate-400 font-medium bg-slate-50/30">
-                          No transaction metrics found for this scope.
-                        </td>
+                        <th className="px-4 py-4 w-10 text-center"><MultiSelectHeader /></th>
+                        {!hiddenCols.includes('col_sno') && <th className="px-4 py-4 border-b border-slate-200 text-center">S.No</th>}
+                        {!hiddenCols.includes('col_tx_id') && <th className="px-6 py-4 border-b border-slate-200">Tx ID</th>}
+                        {!hiddenCols.includes('col_date') && <th className="px-6 py-4 border-b border-slate-200">Date & Temp</th>}
+                        {!hiddenCols.includes('col_seller') && <th className="px-6 py-4 border-b border-slate-200">Seller Entity</th>}
+                        {!hiddenCols.includes('col_type') && <th className="px-6 py-4 border-b border-slate-200">Commodity</th>}
+                        {!hiddenCols.includes('col_volume') && <th className="px-6 py-4 border-b border-slate-200 text-right">Volume</th>}
+                        {!hiddenCols.includes('col_capital') && <th className="px-6 py-4 border-b border-slate-200 text-right">Capital Out</th>}
+                        {!hiddenCols.includes('col_audit') && <th className="px-6 py-4 border-b border-slate-200 text-left">Audit Footprint</th>}
+                        <th className="px-4 py-4 border-b border-slate-200 text-right">Actions</th>
                       </tr>
-                    ) : txData.data.map((tx, idx) => (
-                      <tr key={tx.id} className="border-b border-slate-100/50 hover:bg-slate-50/80 transition-colors group">
-                        <td className="px-5 py-5 text-center align-middle">
-                          <MultiSelectCheckbox id={tx.id} />
-                        </td>
-                        {!hiddenCols.includes('col_sno') && (
-                          <td className="px-5 py-5 text-center text-slate-300 font-mono text-xs tabular-nums">
-                            {offset + idx + 1}
+                    </thead>
+                    <tbody className="divide-y divide-slate-200/50 bg-white/40">
+                      {txData.data.length === 0 ? (
+                        <tr>
+                          <td colSpan={10} className="px-6 py-12 text-center text-slate-500 font-medium">
+                            No transaction metrics found for this scope.
                           </td>
-                        )}
-                        {!hiddenCols.includes('col_tx_id') && (
-                          <td className="px-6 py-5">
-                            <span className="font-mono text-slate-400 text-xs tracking-tight">#{tx.id.split('-')[0]}</span>
+                        </tr>
+                      ) : txData.data.map((tx, idx) => (
+                        <tr key={tx.id} className="hover:bg-slate-50/80 transition-colors group">
+                          <td className="px-4 py-4 text-center align-middle">
+                            <MultiSelectCheckbox id={tx.id} />
                           </td>
-                        )}
-                        {!hiddenCols.includes('col_date') && (
-                          <td className="px-6 py-5">
-                            <div className="font-bold text-slate-800">
-                              {(() => {
-                                const [yy, mm, dd] = tx.transaction_date.split('-')
-                                const mNames = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"]
-                                return `${parseInt(dd)} ${mNames[parseInt(mm) - 1]}`
-                              })()}
-                            </div>
-                            <div className="text-[10px] font-black mt-0.5 uppercase tracking-tighter">
-                              {tx.shift === 'Morning' ? <span className="text-amber-500">Morn-Shift</span> : <span className="text-indigo-500">Even-Shift</span>}
-                            </div>
-                          </td>
-                        )}
-                        {!hiddenCols.includes('col_type') && (
-                          <td className="px-6 py-5">
-                            <span className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-[10px] font-black uppercase tracking-widest border shadow-sm ${
-                              tx.milk_type === 'Cow' 
-                                ? 'bg-amber-50 text-amber-700 border-amber-100' 
-                                : 'bg-slate-50 text-slate-600 border-slate-200'
-                            }`}>
-                              {tx.milk_type === 'Cow' ? '🐄 Cow' : '🐃 Buffalo'}
-                            </span>
-                          </td>
-                        )}
-                        {!hiddenCols.includes('col_volume') && (
-                          <td className="px-6 py-5 text-right">
-                            <div className="font-black text-slate-800 tabular-nums text-base">{Number(tx.quantity_litres).toFixed(1)}L</div>
-                            <div className="text-[10px] font-black text-slate-400 mt-0.5 tracking-tighter uppercase">{Number(tx.fat_percentage).toFixed(1)}% FAT CONTENT</div>
-                          </td>
-                        )}
-                        {!hiddenCols.includes('col_capital') && (
-                          <td className="px-6 py-5 text-right align-top">
-                            <div className="font-black text-emerald-600 tabular-nums text-base">₹{Number(tx.net_payable ?? tx.total_price).toFixed(2)}</div>
-                            <div className="text-[10px] font-black text-slate-400 mt-0.5 tracking-tighter uppercase leading-none">@ RS.{Number(tx.price_per_litre)}/KG</div>
-                            
-                            {tx.status && tx.status !== 'NORMAL' && (
-                              <div className="mt-2 flex flex-col items-end gap-1">
-                                <div className={`text-[9px] font-bold uppercase tracking-widest px-1.5 py-0.5 rounded inline-block
-                                  ${tx.status === 'LOAN_CLEARED' ? 'bg-emerald-50 text-emerald-600 border border-emerald-100' : 'bg-amber-50 text-amber-600 border border-amber-100'}`}>
-                                  {tx.status === 'LOAN_CLEARED' ? 'Loan Cleared' : 'Loan Adjusted'}
-                                </div>
-                                <div className="text-[10px] font-medium text-slate-500 bg-slate-50 border border-slate-200 px-2 py-1 rounded shadow-sm flex flex-col items-end leading-tight mt-1">
-                                  <span>Gross: ₹{Number(tx.total_price).toFixed(2)}</span>
-                                  <span className="text-rose-500 font-bold">Deduct: -₹{Number(tx.loan_deduction).toFixed(2)}</span>
-                                  {tx.loan_balance_after !== undefined && tx.loan_balance_after !== null && (
-                                    <span className="text-amber-600 font-bold border-t border-slate-200 pt-0.5 mt-0.5 w-full text-right">
-                                      Rem Bal: ₹{Number(tx.loan_balance_after).toFixed(2)}
-                                    </span>
-                                  )}
-                                </div>
+                          {!hiddenCols.includes('col_sno') && (
+                            <td className="px-4 py-4 text-center text-slate-400 font-mono text-xs">
+                              {offset + idx + 1}
+                            </td>
+                          )}
+                          {!hiddenCols.includes('col_tx_id') && (
+                            <td className="px-6 py-4">
+                              <span className="font-mono text-slate-400 text-xs">{tx.id.split('-')[0]}</span>
+                            </td>
+                          )}
+                          {!hiddenCols.includes('col_date') && (
+                            <td className="px-6 py-4">
+                              <div className="font-bold text-slate-800">
+                                {(() => {
+                                  const [yy, mm, dd] = tx.transaction_date.split('-')
+                                  const mNames = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"]
+                                  return `${parseInt(dd)} ${mNames[parseInt(mm) - 1]}`
+                                })()}
                               </div>
-                            )}
-                          </td>
-                        )}
-                        {!hiddenCols.includes('col_audit') && (
-                          <td className="px-6 py-5">
-                            <div className="space-y-1">
-                              <div className="text-[10px] text-slate-500 font-black tracking-tighter flex items-center gap-1 uppercase">
-                                <span className="bg-slate-100 px-1 rounded text-[8px] border border-slate-200">C</span>
-                                {tx.created_by_name || 'Admin'} <span className="text-slate-300 font-normal">({new Date(tx.created_at).toLocaleDateString()})</span>
+                              <div className="text-xs text-slate-500 font-semibold mt-0.5">
+                                {tx.shift === 'Morning' ? <span className="text-amber-500">Morn</span> : <span className="text-indigo-500">Even</span>}
                               </div>
-                              {tx.updated_at && (
-                                <div className="text-[10px] text-blue-500 font-black tracking-tighter flex items-center gap-1 uppercase">
-                                  <span className="bg-blue-50 px-1 rounded text-[8px] border border-blue-100">U</span>
-                                  {tx.updated_by_name || 'Admin'} <span className="text-blue-300 font-normal">({new Date(tx.updated_at).toLocaleDateString()})</span>
+                            </td>
+                          )}
+                          {!hiddenCols.includes('col_seller') && (
+                            <td className="px-6 py-4">
+                              <div className="flex items-center gap-2">
+                                <span className="text-[10px] font-mono bg-blue-50 text-blue-600 px-1.5 py-0.5 rounded border border-blue-100">
+                                  #{String(tx.customers?.seller_id || 0).padStart(3, '0')}
+                                </span>
+                                <span className="font-bold text-slate-700">{tx.customers?.name || `${String(tx.customers?.seller_id).padStart(3, '0')} Seller`}</span>
+                              </div>
+                            </td>
+                          )}
+                          {!hiddenCols.includes('col_type') && (
+                            <td className="px-6 py-4">
+                              <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-bold border ${tx.milk_type === 'Cow' ? 'bg-amber-50 text-amber-700 border-amber-200' : 'bg-slate-100 text-slate-700 border-slate-200'}`}>
+                                {tx.milk_type === 'Cow' ? '🐄 Cow' : '🐃 Buffalo'}
+                              </span>
+                            </td>
+                          )}
+                          {!hiddenCols.includes('col_volume') && (
+                            <td className="px-6 py-4 text-right">
+                              <div className="font-black text-slate-800">{Number(tx.quantity_litres).toFixed(1)}L</div>
+                              <div className="text-[10px] font-bold text-slate-400 mt-0.5">{Number(tx.fat_percentage).toFixed(1)}% FAT</div>
+                            </td>
+                          )}
+                          {!hiddenCols.includes('col_capital') && (
+                            <td className="px-6 py-4 text-right align-top">
+                              <div className="font-black text-emerald-600">₹{Number(tx.net_payable ?? tx.total_price).toFixed(2)}</div>
+                              <div className="text-[10px] font-bold text-slate-400 mt-0.5">@ ₹{Number(tx.price_per_litre)}/L</div>
+                              
+                              {tx.status && tx.status !== 'NORMAL' && (
+                                <div className="mt-2 flex flex-col items-end gap-1">
+                                  <div className={`text-[9px] font-bold uppercase tracking-widest px-2 py-0.5 rounded-full inline-block
+                                    ${tx.status === 'LOAN_CLEARED' ? 'bg-emerald-50 text-emerald-600 border border-emerald-200/50' : 'bg-amber-50 text-amber-600 border border-amber-200/50'}`}>
+                                    {tx.status === 'LOAN_CLEARED' ? 'Loan Cleared' : 'Loan Adjusted'}
+                                  </div>
+                                  <div className="text-[10px] font-medium text-slate-500 bg-slate-50 border border-slate-200 px-2 py-1 rounded shadow-sm flex flex-col items-end leading-tight mt-1">
+                                    <span>Gross: ₹{Number(tx.total_price).toFixed(2)}</span>
+                                    <span className="text-rose-500 font-bold">Deduct: -₹{Number(tx.loan_deduction).toFixed(2)}</span>
+                                    {tx.loan_balance_after !== undefined && tx.loan_balance_after !== null && (
+                                      <span className="text-amber-600 font-bold border-t border-slate-200 pt-0.5 mt-0.5 w-full text-right">
+                                        Rem Bal: ₹{Number(tx.loan_balance_after).toFixed(2)}
+                                      </span>
+                                    )}
+                                  </div>
                                 </div>
                               )}
-                            </div>
+                            </td>
+                          )}
+                          {!hiddenCols.includes('col_audit') && (
+                            <td className="px-6 py-4">
+                              <div className="text-[11px] text-slate-500 leading-tight font-medium">
+                                C: {tx.created_by_name || 'Admin'} ({new Date(tx.created_at).toLocaleString([], { dateStyle: 'short', timeStyle: 'short' })})
+                                {tx.updated_at && (
+                                  <><br/><span className="text-sky-600">U: {tx.updated_by_name || 'Admin'} ({new Date(tx.updated_at).toLocaleString([], { dateStyle: 'short', timeStyle: 'short' })})</span></>
+                                )}
+                              </div>
+                            </td>
+                          )}
+                          <td className="px-4 py-4 text-right">
+                            <TransactionActionCell tx={tx} />
                           </td>
-                        )}
-                        <td className="px-4 py-5 text-right">
-                          <TransactionActionCell tx={tx} />
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-              </MultiSelectProvider>
-
-              {/* Table Pagination */}
-              <div className="bg-white border-t border-slate-200 p-6 flex flex-col sm:flex-row items-center justify-between gap-4">
-                <span className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em]">
-                  Analysis Archive: {offset + 1}—{Math.min(offset + limit, txData.count || 0)} <span className="text-slate-200 mx-2">|</span> Total {txData.count} entries
-                </span>
-                
-                <div className="flex items-center gap-2">
-                  <Link 
-                    href={`/customers/${id}?${new URLSearchParams({...Object.fromEntries(Array.from(new URLSearchParams(Object.entries(searchParams || {})))), page: String(Math.max(1, page - 1))}).toString()}`}
-                    scroll={false}
-                    className={`p-2.5 rounded-xl border transition-all ${page === 1 ? 'pointer-events-none opacity-20 bg-slate-50 border-slate-200' : 'bg-white border-slate-200 hover:border-blue-500 hover:text-blue-600 active:scale-95 shadow-sm'}`}
-                  >
-                    <ChevronLeft className="w-4 h-4" />
-                  </Link>
-                  <div className="bg-white border border-slate-200 px-4 py-2 rounded-xl flex items-center gap-2 shadow-sm shadow-slate-100">
-                    <span className="bg-blue-600 text-white w-6 h-6 flex items-center justify-center rounded-lg text-xs font-black">{page}</span>
-                    <span className="text-slate-300 font-black">/</span>
-                    <span className="text-xs font-black text-slate-500">{totalPages || 1}</span>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
                   </div>
-                  <Link 
-                    href={`/customers/${id}?${new URLSearchParams({...Object.fromEntries(Array.from(new URLSearchParams(Object.entries(searchParams || {})))), page: String(Math.min(totalPages, page + 1))}).toString()}`}
-                    scroll={false}
-                    className={`p-2.5 rounded-xl border transition-all ${page >= totalPages || totalPages === 0 ? 'pointer-events-none opacity-20 bg-slate-50 border-slate-200' : 'bg-white border-slate-200 hover:border-blue-500 hover:text-blue-600 active:scale-95 shadow-sm'}`}
-                  >
-                    <ChevronRight className="w-4 h-4" />
-                  </Link>
+
+                  {/* Table Pagination Bounds */}
+                {totalPages > 1 && (
+                  <div className="sticky bottom-0 z-10 bg-white/95 backdrop-blur-sm border-t border-slate-200 p-4 shrink-0 flex items-center justify-between min-w-[800px] w-full">
+                    <span className="text-xs font-semibold text-slate-500">
+                      Showing {offset + 1}-{Math.min(offset + limit, txData.count || 0)} of {txData.count}
+                    </span>
+                    <div className="flex items-center gap-1.5">
+                      <Link 
+                        href={`/customers/${id}?${new URLSearchParams({...Object.fromEntries(Array.from(new URLSearchParams(Object.entries(searchParams || {})))), page: String(Math.max(1, page - 1))}).toString()}`}
+                        scroll={false}
+                        className={`p-1.5 rounded-md border ${page === 1 ? 'border-slate-200 text-slate-300 pointer-events-none' : 'border-slate-200 text-slate-500 hover:text-blue-600 hover:bg-blue-50 transition-colors'}`}
+                      >
+                        <ChevronLeft className="w-4 h-4" />
+                      </Link>
+                      <div className="text-xs font-medium text-slate-600 px-2">
+                        {page} <span className="text-slate-300 mx-0.5">/</span> {totalPages}
+                      </div>
+                      <Link 
+                        href={`/customers/${id}?${new URLSearchParams({...Object.fromEntries(Array.from(new URLSearchParams(Object.entries(searchParams || {})))), page: String(Math.min(totalPages, page + 1))}).toString()}`}
+                        scroll={false}
+                        className={`p-1.5 rounded-md border ${page === totalPages || totalPages === 0 ? 'border-slate-200 text-slate-300 pointer-events-none' : 'border-slate-200 text-slate-500 hover:text-blue-600 hover:bg-blue-50 transition-colors'}`}
+                      >
+                        <ChevronRight className="w-4 h-4" />
+                      </Link>
+                    </div>
+                  </div>
+                )}
                 </div>
-              </div>
-            </div>
-          )}
+                </MultiSelectProvider>
+                </div>
+              </TransactionViewModeWrapper>
+            )}
 
-        </div>
-
+          </div>
+        </section>
       </main>
 
     </div>

@@ -34,7 +34,10 @@ export async function updateSession(request: NextRequest) {
 
   const isAuthCallback = request.nextUrl.pathname.startsWith('/auth/callback')
   
-  if (!user && !request.nextUrl.pathname.startsWith('/login') && !isAuthCallback) {
+  // Define public routes that don't require authentication
+  const isPublicRoute = request.nextUrl.pathname.startsWith('/downloads')
+  
+  if (!user && !request.nextUrl.pathname.startsWith('/login') && !isAuthCallback && !isPublicRoute) {
     const url = request.nextUrl.clone()
     url.pathname = '/login'
     return NextResponse.redirect(url)

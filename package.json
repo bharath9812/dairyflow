@@ -10,8 +10,8 @@
     "build": "next build",
     "start": "next start",
     "lint": "eslint",
-    "electron:dev": "npm run build && cp -r public .next/standalone/ && cp -r .next/static .next/standalone/.next/ && electron .",
-    "electron:build": "npm run build && cp -r public .next/standalone/ && cp -r .next/static .next/standalone/.next/ && electron-builder --mac --arm64 --win --x64"
+    "electron:dev": "npm run build && cp -r public .next/standalone/ && cp -r .next/static .next/standalone/.next/ && cp -r .next/server .next/standalone/.next/ && electron .",
+    "electron:build": "npm run build && cp -r public .next/standalone/ && cp -r .next/static .next/standalone/.next/ && cp -r .next/server .next/standalone/.next/ && electron-builder --mac --arm64 --win --x64"
   },
   "build": {
     "appId": "com.dairyflow.manager",
@@ -43,13 +43,14 @@
   "dependencies": {
     "@supabase/ssr": "^0.9.0",
     "@supabase/supabase-js": "^2.99.3",
+    "electron-updater": "^6.1.8",
+    "html2canvas": "^1.4.1",
     "jspdf": "^4.2.1",
     "jspdf-autotable": "^5.0.7",
     "lucide-react": "^0.577.0",
     "next": "16.2.0",
     "react": "19.2.4",
-    "react-dom": "19.2.4",
-    "electron-updater": "^6.1.8"
+    "react-dom": "19.2.4"
   },
   "devDependencies": {
     "@tailwindcss/postcss": "^4",
@@ -57,11 +58,11 @@
     "@types/react": "^19",
     "@types/react-dom": "^19",
     "babel-plugin-react-compiler": "1.0.0",
+    "electron": "^34.0.0",
+    "electron-builder": "^25.0.0",
     "eslint": "^9",
     "eslint-config-next": "16.2.0",
     "tailwindcss": "^4",
-    "typescript": "^5",
-    "electron": "^34.0.0",
-    "electron-builder": "^25.0.0"
+    "typescript": "^5"
   }
 }

@@ -28,93 +28,11 @@ export default function ExportButtons({ timeframe, exactDate, exactMonth, startD
       }
 
       const doc = new jsPDF()
-
-      // 1. Brand Logo / Header
-      doc.setFontSize(22)
-      doc.setFont("helvetica", "bold")
-      doc.setTextColor(37, 99, 235) // blue-600
-      doc.text("DairyFlow", 14, 20)
-
-      doc.setFontSize(10)
-      doc.setFont("helvetica", "normal")
-      doc.setTextColor(100, 116, 139) // slate-500
-      doc.text("Official Procurement Receipt", 14, 26)
-
-      // 2. Scope Summary
-      doc.setFontSize(11)
-      doc.setFont("helvetica", "bold")
-      doc.setTextColor(15, 23, 42) // slate-900
-      doc.text("Scope Summary:", 14, 40)
-
-      doc.setFontSize(9)
-      doc.setFont("helvetica", "normal")
-      doc.setTextColor(71, 85, 105) // slate-600
       
       let timeLabel = timeframe
       if (timeframe === 'SPECIFIC_DATE') timeLabel = exactDate
       if (timeframe === 'SPECIFIC_MONTH') timeLabel = exactMonth
       if (timeframe === 'CUSTOM_RANGE') timeLabel = `${startDate} to ${endDate}`
-      
-      doc.text(`Timeframe: ${timeLabel}`, 14, 46)
-      doc.text(`Shift: ${shift}`, 14, 52)
-      doc.text(`Commodity: ${milkType === 'ALL' ? 'Cow & Buffalo' : milkType}`, 14, 58)
-      const qtyLabel = minQty ? `${qtyOp === 'eq' ? '=' : qtyOp === 'lt' ? '<' : '>'} ${minQty}L` : 'None'
-      doc.text(`Qty Filter: ${qtyLabel}`, 100, 46)
-      doc.text(`Search Query: ${search || 'None'}`, 100, 52)
-
-      // 3. Table Generation
-      const tableColumn = []
-      if (!hiddenCols.includes('col_sno')) tableColumn.push('S.No')
-      if (!hiddenCols.includes('col_date')) tableColumn.push('Date', 'Shift')
-      if (!hiddenCols.includes('col_seller')) tableColumn.push('Seller ID', 'Name')
-      if (!hiddenCols.includes('col_type')) tableColumn.push('Type')
-      if (!hiddenCols.includes('col_volume')) tableColumn.push('Volume (L)')
-      if (!hiddenCols.includes('col_capital')) tableColumn.push('Rate', 'Gross (INR)', 'Net Payable', 'Loan')
-      if (!hiddenCols.includes('col_audit')) tableColumn.push('Audit Trail')
-
-      const tableRows = json.data.map((tx: any, index: number) => {
-        const row: any[] = []
-        if (!hiddenCols.includes('col_sno')) row.push(index + 1)
-        if (!hiddenCols.includes('col_date')) {
-          row.push(new Date(tx.transaction_date).toLocaleDateString('en-GB'))
-          row.push(tx.shift)
-        }
-        if (!hiddenCols.includes('col_seller')) {
-          row.push(String(tx.customers?.seller_id).padStart(3, '0'))
-          row.push(tx.customers?.name || 'Unknown')
-        }
-        if (!hiddenCols.includes('col_type')) {
-          row.push(tx.milk_type)
-        }
-        if (!hiddenCols.includes('col_volume')) {
-          row.push(Number(tx.quantity_litres).toFixed(1))
-        }
-        if (!hiddenCols.includes('col_capital')) {
-          const tp = Number(tx.total_price)
-          const ded = Number(tx.loan_deduction) || 0
-          const np = tp - ded
-          
-          row.push(Number(tx.price_per_litre).toFixed(2))
-          row.push(tp.toFixed(2))
-          
-          // If adjusted, show breakdown
-          if (tx.status !== 'NORMAL' && ded > 0) {
-            row.push(`Net: ${np.toFixed(2)}\n(Gross: ${tp.toFixed(2)} - Rec: ${ded.toFixed(2)})`)
-            row.push(`-${ded.toFixed(2)}`)
-          } else {
-            row.push(np.toFixed(2))
-            row.push('N/A')
-          }
-        }
-        if (!hiddenCols.includes('col_audit')) {
-          let auditStr = `C: ${tx.created_by_name || 'Admin'} (${new Date(tx.created_at).toLocaleDateString()})`
-          if (tx.updated_at) {
-            auditStr += `\nU: ${tx.updated_by_name || 'Admin'} (${new Date(tx.updated_at).toLocaleDateString()})`
-          }
-          row.push(auditStr)
-        }
-        return row
-      })
 
       // Calculate Aggregates
       let sumVol = 0, sumCap = 0, sumDed = 0, sumNet = 0, cowVol = 0, bufVol = 0, mornVol = 0, eveVol = 0
@@ -134,111 +52,384 @@ export default function ExportButtons({ timeframe, exactDate, exactMonth, startD
         if (tx.shift === 'Evening') eveVol += v
       })
 
-      autoTable(doc, {
-        head: [tableColumn],
-        body: tableRows,
-        startY: 65,
-        theme: 'striped',
-        headStyles: { fillColor: [15, 23, 42], fontSize: 9, fontStyle: 'bold' },
-        bodyStyles: { fontSize: 8, textColor: [51, 65, 85] },
-        alternateRowStyles: { fillColor: [248, 250, 252] },
-        margin: { top: 65 },
-        didParseCell: function (data) {
-          // Highlight rows that are LOAN_ADJUSTED or LOAN_CLEARED
-          if (data.section === 'body') {
-            const rowData = json.data[data.row.index];
-            if (rowData && rowData.status !== 'NORMAL' && (Number(rowData.loan_deduction) > 0)) {
-              data.cell.styles.fillColor = [254, 242, 242]; // red-50
-              if (data.column.index === 5 || data.column.index === 6) { // Capital Columns
-                data.cell.styles.textColor = [225, 29, 72]; // rose-600
-                data.cell.styles.fontStyle = 'bold';
-              }
-            }
-          }
-        }
-      })
+      if (customerId && json.data.length > 0) {
+        // ==========================================
+        // SELLER OFFICIAL STATEMENT (INVOICE STYLE)
+        // ==========================================
+        const sellerName = json.data[0].customers?.name || 'Unknown'
+        const sellerCode = String(json.data[0].customers?.seller_id).padStart(3, '0')
 
-      // Draw Summary Table
-      const finalY = (doc as any).lastAutoTable.finalY + 15
-      
-      autoTable(doc, {
-        startY: finalY,
-        theme: 'grid',
-        head: [[
-          { content: 'System Gross Aggregates', colSpan: 2, styles: { halign: 'center', fillColor: [30, 41, 59] } },
-          { content: 'Commodity Procurement', colSpan: 2, styles: { halign: 'center', fillColor: [37, 99, 235] } },
-          { content: 'Shift Diagnostics', colSpan: 2, styles: { halign: 'center', fillColor: [15, 23, 42] } }
-        ]],
-        body: [
-          [
-            'Net Volume', `${sumVol.toFixed(1)} L`,
-            'Cow Variant', `${cowVol.toFixed(1)} L`,
-            'Morning Checkins', `${mornVol.toFixed(1)} L`
-          ],
-          [
-            'Gross Capital', `Rs. ${sumCap.toFixed(2)}`,
-            'Buffalo Variant', `${bufVol.toFixed(1)} L`,
-            'Evening Checkins', `${eveVol.toFixed(1)} L`
-          ],
-          [
-            'Loan Deductions', `- Rs. ${sumDed.toFixed(2)}`,
-            '-', '-', '-', '-'
-          ],
-          [
-            'Net Final Payable', `Rs. ${sumNet.toFixed(2)}`,
-            '-', '-', '-', '-'
-          ]
-        ],
-        bodyStyles: { textColor: [51, 65, 85], cellPadding: 4, valign: 'middle' },
-        columnStyles: {
-          0: { fontStyle: 'bold', fillColor: [248, 250, 252], textColor: [15, 23, 42], cellWidth: 33 },
-          1: { fontStyle: 'bold', textColor: [16, 185, 129], cellWidth: 27 },
-          2: { fontStyle: 'bold', fillColor: [248, 250, 252], textColor: [15, 23, 42], cellWidth: 34 },
-          3: { fontStyle: 'bold', textColor: [37, 99, 235], cellWidth: 28 },
-          4: { fontStyle: 'bold', fillColor: [248, 250, 252], textColor: [15, 23, 42], cellWidth: 34 },
-          5: { fontStyle: 'bold', textColor: [245, 158, 11], cellWidth: 26 }
-        }
-      })
+        // 1. Dairy Farm Header (Center Aligned)
+        doc.setFontSize(22)
+        doc.setFont("helvetica", "bold")
+        doc.setTextColor(30, 64, 175) // blue-800
+        doc.text("DAIRYFLOW PROCUREMENT SYSTEM", 105, 20, { align: "center" })
 
-      // 4. Draw Loan History Table (If Customer ID is present)
-      if (customerId && json.loans && json.loans.length > 0) {
-        let currentY = (doc as any).lastAutoTable.finalY + 15
-        
-        doc.setFontSize(11)
+        doc.setFontSize(9)
+        doc.setFont("helvetica", "normal")
+        doc.setTextColor(100, 116, 139)
+        doc.text("Official Automated Milk Payment Statement | Generated via DairyFlow Admin", 105, 26, { align: "center" })
+
+        doc.setLineWidth(0.5)
+        doc.setDrawColor(203, 213, 225)
+        doc.line(14, 32, 196, 32)
+
+        // 2. Document Title
+        doc.setFontSize(14)
         doc.setFont("helvetica", "bold")
         doc.setTextColor(15, 23, 42)
-        doc.text("Customer Loan / Advance Ledger", 14, currentY)
-        currentY += 6
+        doc.text("MILK PAYMENT STATEMENT", 105, 40, { align: "center" })
 
-        const loanTableRows = json.loans.map((loan: any) => {
+        // 3. Meta Info Box
+        doc.setDrawColor(226, 232, 240)
+        doc.setFillColor(248, 250, 252)
+        doc.roundedRect(14, 46, 182, 22, 2, 2, "FD")
+
+        doc.setFontSize(9)
+        doc.setFont("helvetica", "bold")
+        doc.setTextColor(71, 85, 105)
+        doc.text("Seller Details:", 18, 52)
+        doc.text("Statement Period:", 110, 52)
+
+        doc.setFont("helvetica", "normal")
+        doc.setTextColor(15, 23, 42)
+        doc.text(`ID: #${sellerCode}  |  Name: ${sellerName}`, 18, 58)
+        doc.text(`${timeLabel}`, 110, 58)
+        
+        doc.text(`Phone: ${json.data[0].customers?.contact || 'N/A'}`, 18, 64)
+        doc.text(`Generated On: ${new Date().toLocaleDateString('en-GB')}`, 110, 64)
+
+        // 4. Transactions Table
+        const tableColumn = ['Date', 'Shift', 'Type', 'Qty (L)', 'Rate/L', 'Gross (Rs)', 'Deduction', 'Net (Rs)']
+        const tableRows = json.data.map((tx: any) => {
+          const tp = Number(tx.total_price)
+          const ded = Number(tx.loan_deduction) || 0
           return [
-            new Date(loan.created_at).toLocaleDateString('en-GB'),
-            `L-${loan.id.split('-')[0].toUpperCase()}`,
-            Number(loan.amount).toFixed(2),
-            Number(loan.recovered_amount).toFixed(2),
-            (Number(loan.amount) - Number(loan.recovered_amount)).toFixed(2),
-            loan.status
+            new Date(tx.transaction_date).toLocaleDateString('en-GB'),
+            tx.shift === 'Morning' ? 'Morn' : 'Eve',
+            tx.milk_type,
+            Number(tx.quantity_litres).toFixed(1),
+            Number(tx.price_per_litre).toFixed(2),
+            tp.toFixed(2),
+            ded > 0 ? `-${ded.toFixed(2)}` : '-',
+            (tp - ded).toFixed(2)
           ]
         })
 
         autoTable(doc, {
-          head: [['Issued Date', 'Loan ID', 'Amount (INR)', 'Recovered (INR)', 'Pending (INR)', 'Status']],
-          body: loanTableRows,
-          startY: currentY,
-          theme: 'striped',
-          headStyles: { fillColor: [71, 85, 105], fontSize: 9, fontStyle: 'bold' },
-          bodyStyles: { fontSize: 8 },
+          head: [tableColumn],
+          body: tableRows,
+          startY: 75,
+          theme: 'grid',
+          headStyles: { fillColor: [30, 64, 175], fontSize: 9, fontStyle: 'bold', halign: 'center' },
+          bodyStyles: { fontSize: 8, textColor: [51, 65, 85], halign: 'center' },
+          alternateRowStyles: { fillColor: [248, 250, 252] },
           didParseCell: function (data) {
-            if (data.section === 'body' && data.column.index === 5) {
-              if (data.cell.raw === 'ACTIVE') data.cell.styles.textColor = [37, 99, 235] // blue
-              if (data.cell.raw === 'CLEARED') data.cell.styles.textColor = [16, 185, 129] // green
+             if (data.section === 'body' && data.column.index === 6 && data.cell.raw !== '-') {
+                 data.cell.styles.textColor = [225, 29, 72] // Red for deduction
+                 data.cell.styles.fontStyle = 'bold'
+             }
+             if (data.section === 'body' && data.column.index === 7) {
+                 data.cell.styles.fontStyle = 'bold'
+             }
+          }
+        })
+
+        // Draw Loan History Table BEFORE Financial Summary
+        if (json.loans && json.loans.length > 0) {
+          let currentY = (doc as any).lastAutoTable.finalY + 15
+          
+          doc.setFontSize(11)
+          doc.setFont("helvetica", "bold")
+          doc.setTextColor(15, 23, 42)
+          doc.text("Customer Loan / Advance Ledger", 14, currentY)
+          currentY += 6
+
+          const loanTableRows = json.loans.map((loan: any) => {
+            return [
+              new Date(loan.created_at).toLocaleDateString('en-GB'),
+              `L-${loan.id.split('-')[0].toUpperCase()}`,
+              Number(loan.amount).toFixed(2),
+              Number(loan.recovered_amount).toFixed(2),
+              (Number(loan.amount) - Number(loan.recovered_amount)).toFixed(2),
+              loan.status
+            ]
+          })
+
+          autoTable(doc, {
+            head: [['Issued Date', 'Loan ID', 'Amount (INR)', 'Recovered (INR)', 'Pending (INR)', 'Status']],
+            body: loanTableRows,
+            startY: currentY,
+            theme: 'striped',
+            headStyles: { fillColor: [71, 85, 105], fontSize: 9, fontStyle: 'bold' },
+            bodyStyles: { fontSize: 8 },
+            didParseCell: function (data) {
+              if (data.section === 'body' && data.column.index === 5) {
+                if (data.cell.raw === 'ACTIVE') data.cell.styles.textColor = [37, 99, 235] // blue
+                if (data.cell.raw === 'CLEARED') data.cell.styles.textColor = [16, 185, 129] // green
+              }
+            }
+          })
+        }
+
+        const finalY = Math.max((doc as any).lastAutoTable.finalY + 10, 100)
+
+        // 5. Financial Summary Box
+        doc.setDrawColor(30, 64, 175)
+        doc.setFillColor(239, 246, 255) // blue-50
+        doc.roundedRect(100, finalY, 96, 42, 2, 2, "FD")
+
+        doc.setFontSize(10)
+        doc.setFont("helvetica", "normal")
+        doc.setTextColor(71, 85, 105)
+        doc.text("Total Volume (Liters):", 105, finalY + 8)
+        
+        doc.setFontSize(8)
+        doc.setTextColor(148, 163, 184)
+        doc.text(`(Cow: ${cowVol.toFixed(1)} L  |  Buffalo: ${bufVol.toFixed(1)} L)`, 105, finalY + 13)
+
+        doc.setFontSize(10)
+        doc.setTextColor(71, 85, 105)
+        doc.text("Gross Payable:", 105, finalY + 20)
+        doc.text("Total Loan Deductions:", 105, finalY + 27)
+        
+        doc.setFont("helvetica", "bold")
+        doc.setTextColor(15, 23, 42)
+        doc.text(`${sumVol.toFixed(1)} L`, 190, finalY + 8, { align: "right" })
+        doc.text(`Rs. ${sumCap.toFixed(2)}`, 190, finalY + 20, { align: "right" })
+        doc.setTextColor(225, 29, 72)
+        doc.text(`- Rs. ${sumDed.toFixed(2)}`, 190, finalY + 27, { align: "right" })
+
+        doc.setLineWidth(0.2)
+        doc.setDrawColor(148, 163, 184)
+        doc.line(105, finalY + 31, 190, finalY + 31)
+
+        doc.setFontSize(12)
+        doc.setTextColor(30, 64, 175)
+        doc.text("NET PAYABLE:", 105, finalY + 38)
+        doc.text(`Rs. ${sumNet.toFixed(2)}`, 190, finalY + 38, { align: "right" })
+
+        // 6. Signature Lines
+        let sigY = finalY + 60
+        if (sigY > 270) {
+            doc.addPage()
+            sigY = 40
+        }
+        
+        doc.setFontSize(10)
+        doc.setFont("helvetica", "bold")
+        doc.setTextColor(100, 116, 139)
+        doc.text("__________________________", 20, sigY)
+        doc.text("Seller Signature", 32, sigY + 6)
+
+        doc.text("__________________________", 130, sigY)
+        doc.text("Authorized Farm Signatory", 134, sigY + 6)
+
+        doc.setFontSize(8)
+        doc.setFont("helvetica", "italic")
+        doc.setTextColor(148, 163, 184)
+        doc.text("This is a computer generated receipt. Please report any discrepancies within 24 hours.", 105, sigY + 20, { align: "center" })
+
+      } else {
+        // ==========================================
+        // GLOBAL ADMIN EXPORT (OFFICIAL STYLE)
+        // ==========================================
+        
+        // 1. Dairy Farm Header (Center Aligned)
+        doc.setFontSize(22)
+        doc.setFont("helvetica", "bold")
+        doc.setTextColor(30, 64, 175) // blue-800
+        doc.text("DAIRYFLOW PROCUREMENT SYSTEM", 105, 20, { align: "center" })
+
+        doc.setFontSize(9)
+        doc.setFont("helvetica", "normal")
+        doc.setTextColor(100, 116, 139)
+        doc.text("Global Operations Master Report | Generated via DairyFlow Admin", 105, 26, { align: "center" })
+
+        doc.setLineWidth(0.5)
+        doc.setDrawColor(203, 213, 225)
+        doc.line(14, 32, 196, 32)
+
+        // 2. Document Title
+        doc.setFontSize(14)
+        doc.setFont("helvetica", "bold")
+        doc.setTextColor(15, 23, 42)
+        doc.text("GLOBAL PROCUREMENT REPORT", 105, 40, { align: "center" })
+
+        // 3. Meta Info Box
+        doc.setDrawColor(226, 232, 240)
+        doc.setFillColor(248, 250, 252)
+        doc.roundedRect(14, 46, 182, 22, 2, 2, "FD")
+
+        doc.setFontSize(9)
+        doc.setFont("helvetica", "bold")
+        doc.setTextColor(71, 85, 105)
+        doc.text("Scope Details:", 18, 52)
+        doc.text("Timeframe:", 110, 52)
+
+        doc.setFont("helvetica", "normal")
+        doc.setTextColor(15, 23, 42)
+        
+        const qtyLabel = minQty ? `${qtyOp === 'eq' ? '=' : qtyOp === 'lt' ? '<' : '>'} ${minQty}L` : 'None'
+        doc.text(`Commodity: ${milkType === 'ALL' ? 'Cow & Buffalo' : milkType}  |  Shift: ${shift}`, 18, 58)
+        doc.text(`${timeLabel}`, 110, 58)
+        
+        doc.text(`Qty Filter: ${qtyLabel}  |  Search: ${search || 'None'}`, 18, 64)
+        doc.text(`Generated On: ${new Date().toLocaleDateString('en-GB')}`, 110, 64)
+
+        // 4. Table Generation
+        const tableColumn = []
+        if (!hiddenCols.includes('col_sno')) tableColumn.push('S.No')
+        if (!hiddenCols.includes('col_date')) tableColumn.push('Date', 'Shift')
+        if (!hiddenCols.includes('col_seller')) tableColumn.push('Seller ID', 'Name')
+        if (!hiddenCols.includes('col_type')) tableColumn.push('Type')
+        if (!hiddenCols.includes('col_volume')) tableColumn.push('Volume (L)')
+        if (!hiddenCols.includes('col_capital')) tableColumn.push('Rate', 'Gross (INR)', 'Net Payable', 'Loan')
+        if (!hiddenCols.includes('col_audit')) tableColumn.push('Audit Trail')
+
+        const tableRows = json.data.map((tx: any, index: number) => {
+          const row: any[] = []
+          if (!hiddenCols.includes('col_sno')) row.push(index + 1)
+          if (!hiddenCols.includes('col_date')) {
+            row.push(new Date(tx.transaction_date).toLocaleDateString('en-GB'))
+            row.push(tx.shift === 'Morning' ? 'Morn' : 'Eve')
+          }
+          if (!hiddenCols.includes('col_seller')) {
+            row.push(String(tx.customers?.seller_id).padStart(3, '0'))
+            row.push(tx.customers?.name || 'Unknown')
+          }
+          if (!hiddenCols.includes('col_type')) {
+            row.push(tx.milk_type)
+          }
+          if (!hiddenCols.includes('col_volume')) {
+            row.push(Number(tx.quantity_litres).toFixed(1))
+          }
+          if (!hiddenCols.includes('col_capital')) {
+            const tp = Number(tx.total_price)
+            const ded = Number(tx.loan_deduction) || 0
+            const np = tp - ded
+            
+            row.push(Number(tx.price_per_litre).toFixed(2))
+            row.push(tp.toFixed(2))
+            
+            if (tx.status !== 'NORMAL' && ded > 0) {
+              row.push(`${np.toFixed(2)}\n(Ded: ${ded.toFixed(2)})`)
+              row.push(`-${ded.toFixed(2)}`)
+            } else {
+              row.push(np.toFixed(2))
+              row.push('-')
+            }
+          }
+          if (!hiddenCols.includes('col_audit')) {
+            row.push(`C: ${tx.created_by_name || 'Admin'} (${new Date(tx.created_at).toLocaleDateString('en-GB')})`)
+          }
+          return row
+        })
+
+        autoTable(doc, {
+          head: [tableColumn],
+          body: tableRows,
+          startY: 75,
+          theme: 'grid',
+          headStyles: { fillColor: [15, 23, 42], fontSize: 8, fontStyle: 'bold', halign: 'center' },
+          bodyStyles: { fontSize: 7, textColor: [51, 65, 85], halign: 'center' },
+          alternateRowStyles: { fillColor: [248, 250, 252] },
+          didParseCell: function (data) {
+            if (data.section === 'body') {
+              const rowData = json.data[data.row.index];
+              if (rowData && rowData.status !== 'NORMAL' && (Number(rowData.loan_deduction) > 0)) {
+                data.cell.styles.fillColor = [254, 242, 242];
+                // Assuming Loan is the last or second to last column depending on hiddenCols
+                if (data.column.index >= tableColumn.length - 2 && !hiddenCols.includes('col_capital')) {
+                  data.cell.styles.textColor = [225, 29, 72];
+                  data.cell.styles.fontStyle = 'bold';
+                }
+              }
             }
           }
         })
+
+        const finalY = Math.max((doc as any).lastAutoTable.finalY + 10, 100)
+
+        // 5. Financial Summary Box (Global)
+        doc.setDrawColor(15, 23, 42)
+        doc.setFillColor(248, 250, 252)
+        doc.roundedRect(100, finalY, 96, 42, 2, 2, "FD")
+
+        doc.setFontSize(10)
+        doc.setFont("helvetica", "normal")
+        doc.setTextColor(71, 85, 105)
+        doc.text("Total Global Volume:", 105, finalY + 8)
+        
+        doc.setFontSize(8)
+        doc.setTextColor(148, 163, 184)
+        doc.text(`(Cow: ${cowVol.toFixed(1)} L  |  Buffalo: ${bufVol.toFixed(1)} L)`, 105, finalY + 13)
+
+        doc.setFontSize(10)
+        doc.setTextColor(71, 85, 105)
+        doc.text("Total Gross Capital:", 105, finalY + 20)
+        doc.text("Total Loan Deductions:", 105, finalY + 27)
+        
+        doc.setFont("helvetica", "bold")
+        doc.setTextColor(15, 23, 42)
+        doc.text(`${sumVol.toFixed(1)} L`, 190, finalY + 8, { align: "right" })
+        doc.text(`Rs. ${sumCap.toFixed(2)}`, 190, finalY + 20, { align: "right" })
+        doc.setTextColor(225, 29, 72)
+        doc.text(`- Rs. ${sumDed.toFixed(2)}`, 190, finalY + 27, { align: "right" })
+
+        doc.setLineWidth(0.2)
+        doc.setDrawColor(148, 163, 184)
+        doc.line(105, finalY + 31, 190, finalY + 31)
+
+        doc.setFontSize(12)
+        doc.setTextColor(15, 23, 42)
+        doc.text("NET GLOBAL PAYABLE:", 105, finalY + 38)
+        doc.text(`Rs. ${sumNet.toFixed(2)}`, 190, finalY + 38, { align: "right" })
+        
+        // 6. Signatures (Global Admin)
+        let sigY = finalY + 60
+        if (sigY > 270) {
+            doc.addPage()
+            sigY = 40
+        }
+        
+        doc.setFontSize(10)
+        doc.setFont("helvetica", "bold")
+        doc.setTextColor(100, 116, 139)
+        doc.text("__________________________", 20, sigY)
+        doc.text("System Administrator", 30, sigY + 6)
+
+        doc.text("__________________________", 130, sigY)
+        doc.text("Authorized Executive", 138, sigY + 6)
+
+        doc.setFontSize(8)
+        doc.setFont("helvetica", "italic")
+        doc.setTextColor(148, 163, 184)
+        doc.text("This is an internal global administrative report.", 105, sigY + 20, { align: "center" })
       }
 
       // 5. Save file uniquely
-      doc.save(`DairyFlow_Export_${timeframe}_${shift.toUpperCase()}.pdf`)
+      let sellerComponent = "Global"
+      if (customerId && json.data.length > 0) {
+        const name = json.data[0].customers?.name?.replace(/\s+/g, '') || "Seller"
+        const id = String(json.data[0].customers?.seller_id).padStart(3, '0')
+        sellerComponent = `${name}_${id}`
+      }
+
+      let dateComponent = timeframe
+      if (timeframe === "SPECIFIC_DATE") dateComponent = exactDate || "Date"
+      if (timeframe === "SPECIFIC_MONTH") dateComponent = exactMonth || "Month"
+      if (timeframe === "CUSTOM_RANGE") dateComponent = `${startDate}_to_${endDate}`
+      if (timeframe === "TODAY") dateComponent = "Today"
+      if (timeframe === "MONTHLY") dateComponent = "Monthly"
+      if (timeframe === "MONTH_FIRST_HALF") dateComponent = "FirstHalf"
+      if (timeframe === "MONTH_SECOND_HALF") dateComponent = "SecondHalf"
+      if (timeframe === "ALL_TIME") dateComponent = "AllTime"
+
+      const shiftComponent = shift === "ALL" ? "AllShifts" : shift
+      const finalFileName = `DairyFlow_${sellerComponent}_${dateComponent}_${shiftComponent}.pdf`
+
+      doc.save(finalFileName)
 
     } catch (err) {
       console.error(err)
@@ -252,7 +443,7 @@ export default function ExportButtons({ timeframe, exactDate, exactMonth, startD
     <div className="flex flex-col sm:flex-row items-center gap-3 w-full lg:w-auto mt-4 lg:mt-0">
       <button 
         onClick={downloadCSV}
-        className="w-full sm:w-auto flex items-center justify-center gap-2 bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 px-4 py-2.5 rounded-xl text-sm font-bold transition-all shadow-sm"
+        className="w-full sm:w-auto flex items-center justify-center gap-2 bg-white/50 border border-white/60 hover:bg-white/80 text-sky-accent px-4 py-2.5 rounded-xl text-sm font-bold transition-all shadow-sm backdrop-blur-sm"
       >
         <Download className="w-4 h-4" /> CSV Export
       </button>
@@ -260,7 +451,7 @@ export default function ExportButtons({ timeframe, exactDate, exactMonth, startD
       <button 
         onClick={downloadPDF}
         disabled={isExportingPDF}
-        className="w-full sm:w-auto flex items-center justify-center gap-2 bg-blue-600 hover:bg-blue-700 text-white px-4 py-2.5 rounded-xl text-sm font-bold transition-all shadow-sm disabled:opacity-70 disabled:cursor-not-allowed"
+        className="w-full sm:w-auto flex items-center justify-center gap-2 bg-white/50 border border-white/60 hover:bg-white/80 text-sky-accent px-4 py-2.5 rounded-xl text-sm font-bold transition-all shadow-sm backdrop-blur-sm disabled:opacity-70 disabled:cursor-not-allowed"
       >
         {isExportingPDF ? <Loader2 className="w-4 h-4 animate-spin" /> : <FileText className="w-4 h-4" />} 
         {isExportingPDF ? 'Building PDF...' : 'PDF Receipt'}

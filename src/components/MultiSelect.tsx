@@ -35,9 +35,9 @@ export function MultiSelectProvider({ children, allIds }: { children: React.Reac
 
   return (
     <MultiSelectContext.Provider value={{ selected, toggleAll, toggleOne, allIds, isDeleting, handleDelete }}>
-      <div className="relative rounded-3xl">
+      <div className="relative flex flex-col flex-1 min-h-0 w-full h-full">
         {selected.size > 0 && (
-           <div className="absolute top-0 left-0 right-0 bg-indigo-50 border-b border-indigo-100 p-3 flex justify-between z-20 items-center px-6 rounded-t-3xl shadow-sm">
+           <div className="absolute top-0 left-0 right-0 bg-indigo-50 border-b border-indigo-100 p-3 flex justify-between z-20 items-center px-6 shadow-sm">
              <span className="text-sm font-bold text-indigo-800">{selected.size} record{selected.size > 1 ? 's' : ''} selected</span>
              <button 
                 onClick={handleDelete} 
@@ -48,7 +48,7 @@ export function MultiSelectProvider({ children, allIds }: { children: React.Reac
              </button>
            </div>
         )}
-        <div className={selected.size > 0 ? "pt-12" : ""}>
+        <div className={`flex flex-col flex-1 min-h-0 ${selected.size > 0 ? "pt-12" : ""}`}>
           {children}
         </div>
       </div>

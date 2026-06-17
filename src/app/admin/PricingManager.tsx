@@ -2,7 +2,7 @@
 /* eslint-disable @typescript-eslint/no-explicit-any, @typescript-eslint/no-unused-vars, react-hooks/exhaustive-deps, prefer-const, react/no-unescaped-entities, react-hooks/set-state-in-effect */
 
 import React, { useState } from 'react'
-import { DollarSign, Save, Loader2, BadgePercent } from 'lucide-react'
+import { Activity, Save, Loader2, Zap, Globe } from 'lucide-react'
 import { updatePricing } from './pricing-actions'
 
 export default function PricingManager({ initialCow, initialBuffalo }: { initialCow: number, initialBuffalo: number }) {
@@ -33,73 +33,98 @@ export default function PricingManager({ initialCow, initialBuffalo }: { initial
   }
 
   return (
-    <div className="bg-white rounded-3xl border border-slate-200 shadow-sm overflow-hidden flex flex-col mb-4">
-      <div className="px-6 py-5 border-b border-slate-100 flex items-center justify-between">
-        <div className="flex items-center gap-3">
-          <div className="p-2 bg-emerald-50 text-emerald-600 rounded-lg">
-            <BadgePercent className="w-5 h-5" />
+    <div className="bg-white/80 backdrop-blur-2xl border border-white/40 shadow-[0_4px_24px_-1px_rgba(0,0,0,0.05)] rounded-2xl flex flex-col justify-between p-6 w-full relative z-20">
+      
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between mb-8 gap-4">
+        <div className="flex items-center gap-4">
+          <div className="w-12 h-12 rounded-xl bg-onyx flex items-center justify-center shrink-0">
+            <Activity className="text-white w-6 h-6" />
           </div>
           <div>
-            <h2 className="text-lg font-bold text-slate-800 tracking-tight">Global Commodity Pricing</h2>
-            <p className="text-xs font-semibold text-slate-400">Manage base rates per kg. Updates apply globally.</p>
+            <h3 className="font-bold text-xl text-onyx tracking-tight leading-none mb-1.5">Live Rate Configuration</h3>
+            <p className="text-xs font-mono text-slate-500 font-semibold tracking-wide">UTC: {new Date().toISOString().replace('T', ' ').substring(0, 19)}</p>
           </div>
         </div>
-        {message && (
-          <span className={`text-xs font-bold px-3 py-1.5 rounded-md ${message.type === 'error' ? 'bg-rose-50 text-rose-600' : 'bg-emerald-50 text-emerald-600'}`}>
-            {message.text}
-          </span>
-        )}
+        
+        <div className="flex items-center gap-3">
+          {message && (
+            <span className={`text-[10px] font-bold px-2 py-1 rounded ${message.type === 'error' ? 'bg-rose-50 text-rose-600' : 'bg-emerald-50 text-emerald-600'}`}>
+              {message.text}
+            </span>
+          )}
+          <div className="bg-slate-100 px-4 py-1.5 rounded-full flex items-center gap-2">
+            <span className="w-2 h-2 rounded-full bg-sky-accent animate-pulse"></span>
+            <span className="text-xs font-bold text-onyx tracking-widest">SYSTEM ARMED</span>
+          </div>
+        </div>
       </div>
 
-      <div className="p-6">
-        <form onSubmit={handleUpdate} className="flex flex-col md:flex-row items-end gap-6 w-full">
-          
-          <div className="flex-1 w-full space-y-2">
-            <label className="text-xs font-bold text-slate-500 uppercase tracking-widest flex items-center gap-2">
-              <span className="w-2 h-2 rounded-full bg-amber-400"></span> Cow Milk Rate (₹/kg)
-            </label>
+      <form onSubmit={handleUpdate} className="flex flex-col gap-8 w-full">
+        
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+          {/* Cow Milk */}
+          <div className="space-y-4">
+            <div className="flex items-center justify-between">
+              <label className="text-xs font-bold uppercase tracking-widest text-slate-500">Cow Milk Rate (₹/KG)</label>
+              <span className="text-[10px] bg-slate-100 text-onyx px-2 py-0.5 rounded font-mono font-bold">+0.5% Volatility</span>
+            </div>
             <div className="relative">
-              <span className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 font-black">₹</span>
+              <span className="absolute left-4 top-1/2 -translate-y-1/2 font-bold text-slate-400 text-xl">₹</span>
               <input
                 type="number"
                 step="0.1"
                 required
                 value={cowPrice}
                 onChange={e => setCowPrice(e.target.value)}
-                className="w-full pl-8 pr-4 py-3 rounded-xl border border-slate-200 bg-slate-50 text-slate-800 font-black focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/20 transition-all outline-none"
+                className="w-full pl-10 pr-4 py-3 rounded-2xl border border-black/5 bg-black/[0.03] text-onyx font-black text-2xl focus:bg-white focus:border-sky-accent focus:ring-4 focus:ring-sky-accent/20 transition-all outline-none"
               />
+            </div>
+            <div className="flex gap-2">
+              <button type="button" onClick={() => setCowPrice(initialCow.toString())} className="px-3 py-1 bg-slate-100 text-[11px] font-bold text-slate-500 rounded-lg hover:bg-slate-200 transition-colors">Reset</button>
             </div>
           </div>
 
-          <div className="flex-1 w-full space-y-2">
-            <label className="text-xs font-bold text-slate-500 uppercase tracking-widest flex items-center gap-2">
-              <span className="w-2 h-2 rounded-full bg-slate-400"></span> Buffalo Milk Rate (₹/kg)
-            </label>
+          {/* Buffalo Milk */}
+          <div className="space-y-4">
+            <div className="flex items-center justify-between">
+              <label className="text-xs font-bold uppercase tracking-widest text-slate-500">Buffalo Milk Rate (₹/KG)</label>
+              <span className="text-[10px] bg-slate-100 text-onyx px-2 py-0.5 rounded font-mono font-bold">Stable Market</span>
+            </div>
             <div className="relative">
-              <span className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 font-black">₹</span>
+              <span className="absolute left-4 top-1/2 -translate-y-1/2 font-bold text-slate-400 text-xl">₹</span>
               <input
                 type="number"
                 step="0.1"
                 required
                 value={buffaloPrice}
                 onChange={e => setBuffaloPrice(e.target.value)}
-                className="w-full pl-8 pr-4 py-3 rounded-xl border border-slate-200 bg-slate-50 text-slate-800 font-black focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/20 transition-all outline-none"
+                className="w-full pl-10 pr-4 py-3 rounded-2xl border border-black/5 bg-black/[0.03] text-onyx font-black text-2xl focus:bg-white focus:border-sky-accent focus:ring-4 focus:ring-sky-accent/20 transition-all outline-none"
               />
             </div>
+            <div className="flex gap-2">
+              <button type="button" onClick={() => setBuffaloPrice(initialBuffalo.toString())} className="px-3 py-1 bg-slate-100 text-[11px] font-bold text-slate-500 rounded-lg hover:bg-slate-200 transition-colors">Reset</button>
+            </div>
           </div>
+        </div>
 
-          <div className="w-full md:w-auto">
-            <button
-              type="submit"
-              disabled={isSaving}
-              className="w-full md:w-auto bg-emerald-600 hover:bg-emerald-700 disabled:bg-slate-300 text-white font-bold py-3 px-8 rounded-xl shadow-lg shadow-emerald-200 transition-all active:scale-95 flex items-center justify-center gap-2"
-            >
-              {isSaving ? <Loader2 className="w-5 h-5 animate-spin" /> : <><Save className="w-4 h-4" /> Enforce New Rates</>}
-            </button>
-          </div>
-          
-        </form>
-      </div>
+        <div className="pt-6 border-t border-slate-200/50">
+          <button
+            type="submit"
+            disabled={isSaving}
+            className="w-full bg-onyx text-white rounded-xl font-bold flex items-center justify-center gap-3 shadow-xl shadow-onyx/20 hover:scale-[1.01] transition-all active:scale-[0.98] py-3 text-base disabled:opacity-70 disabled:hover:scale-100"
+          >
+            {isSaving ? (
+              <Loader2 className="w-5 h-5 animate-spin" />
+            ) : (
+              <>
+                <Zap className="w-5 h-5 fill-white" />
+                Enforce New Rates
+              </>
+            )}
+          </button>
+        </div>
+        
+      </form>
     </div>
   )
 }

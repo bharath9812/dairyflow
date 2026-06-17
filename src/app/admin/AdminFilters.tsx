@@ -7,11 +7,27 @@ import { useState, useEffect, useTransition, useCallback } from 'react'
 
 export default function AdminFilters({ currentYear, isCustomerScope, exportButtons }: { currentYear?: number, isCustomerScope?: boolean, exportButtons?: React.ReactNode }) {
   const displayYear = currentYear || new Date().getFullYear()
-  const [isExpanded, setIsExpanded] = useState(!isCustomerScope)
+  const [isExpanded, setIsExpanded] = useState(true) // Default to true, will override in effect
   const router = useRouter()
   const searchParams = useSearchParams()
   const pathname = usePathname()
   const [, startTransition] = useTransition()
+
+  // Initialize and persist collapse state
+  useEffect(() => {
+    const saved = localStorage.getItem('dairyflow_admin_filters_expanded')
+    if (saved !== null) {
+      setIsExpanded(saved === 'true')
+    } else if (isCustomerScope !== undefined) {
+      setIsExpanded(!isCustomerScope)
+    }
+  }, [isCustomerScope])
+
+  const toggleExpanded = () => {
+    const next = !isExpanded
+    setIsExpanded(next)
+    localStorage.setItem('dairyflow_admin_filters_expanded', String(next))
+  }
 
   const [timeframe, setTimeframe] = useState(searchParams.get('timeframe') || 'TODAY')
   const [exactDate, setExactDate] = useState(searchParams.get('exactDate') || '')
@@ -99,16 +115,16 @@ export default function AdminFilters({ currentYear, isCustomerScope, exportButto
   }
 
   return (
-    <div className="bg-white p-4 rounded-3xl shadow-[0_8px_30px_rgb(0,0,0,0.04)] border border-slate-200 w-full transition-all duration-300">
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 px-1 mb-2">
-        <div className="flex items-center gap-2">
-          <Filter className="w-4 h-4 text-slate-400" />
-          <h3 className="text-sm font-bold text-slate-800 uppercase tracking-wider">Advanced Filters</h3>
+    <div className="bg-white/80 backdrop-blur-2xl border border-white/40 shadow-sm rounded-xl p-5 flex flex-col shrink-0 transition-all duration-300 w-full relative z-20">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+        <div className="flex items-center gap-2 text-slate-500 font-semibold text-sm uppercase tracking-wider">
+          <Filter className="w-[18px] h-[18px]" />
+          ADVANCED FILTERS
           <button 
-            onClick={() => setIsExpanded(!isExpanded)}
-            className="ml-2 text-xs font-bold px-2.5 py-1 bg-slate-100 text-slate-500 rounded-lg hover:bg-slate-200 transition-colors flex items-center gap-1"
+            onClick={toggleExpanded}
+            className="ml-2 text-[10px] font-bold px-2 py-0.5 bg-slate-100/50 border border-slate-200 text-slate-500 rounded hover:bg-slate-200 transition-colors flex items-center gap-1"
           >
-            {isExpanded ? 'Collapse' : 'Expand'}
+            {isExpanded ? 'COLLAPSE' : 'EXPAND'}
           </button>
         </div>
 
@@ -120,163 +136,176 @@ export default function AdminFilters({ currentYear, isCustomerScope, exportButto
       </div>
       
       {isExpanded && (
-        <div className="animate-in slide-in-from-top-2 fade-in duration-300">
-          <div className="flex flex-wrap items-center gap-3 mt-4">
+        <div className="animate-in slide-in-from-top-2 fade-in duration-300 flex flex-col gap-4 mt-4">
+          
+          <div className="flex flex-wrap gap-4 items-center">
             
             {/* Timeframe Dropdown */}
-        <div className="relative flex-[1_1_180px]">
-          <Calendar className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-blue-500" />
-          <select 
-            value={timeframe}
-            onChange={(e) => {
-              setTimeframe(e.target.value)
-              if (e.target.value !== 'SPECIFIC_DATE') setExactDate('')
-              if (e.target.value !== 'SPECIFIC_MONTH') setExactMonth('')
-              if (e.target.value !== 'CUSTOM_RANGE') {
-                setStartDate('')
-                setEndDate('')
-              }
-            }}
-            className="w-full appearance-none pl-10 pr-10 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm font-bold text-slate-700 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 cursor-pointer transition-all hover:bg-slate-100"
-          >
-            <option value="TODAY">Today&apos;s Tx</option>
-            <option value="SPECIFIC_DATE">Specific Date...</option>
-            <option value="SPECIFIC_MONTH">Specific Month...</option>
-            <option value="CUSTOM_RANGE">Custom Range...</option>
-            <option value="MONTH_FIRST_HALF">1st-15th</option>
-            <option value="MONTH_SECOND_HALF">16th-End</option>
-            <option value="MONTHLY">Current Month</option>
-            <option value="ALL_TIME">All-Time</option>
-          </select>
-          <div className="absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none text-slate-400 text-xs">▼</div>
-        </div>
-
-        {/* Conditional Specific Date/Month Inputs */}
-        {timeframe === 'SPECIFIC_DATE' && (
-          <div className="relative flex-[1_1_160px] animate-in fade-in zoom-in-95 duration-200">
-            <input 
-              type="date"
-              value={exactDate}
-              onChange={(e) => setExactDate(e.target.value)}
-              className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm font-bold text-slate-700 focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all"
-            />
-          </div>
-        )}
-
-        {timeframe === 'SPECIFIC_MONTH' && (
-          <div className="relative flex-[1_1_160px] animate-in fade-in zoom-in-95 duration-200">
-            <Calendar className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
-            <select 
-              value={exactMonth}
-              onChange={(e) => setExactMonth(e.target.value)}
-              className="w-full appearance-none pl-10 pr-10 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm font-bold text-slate-700 focus:outline-none focus:ring-2 focus:ring-blue-500 cursor-pointer transition-all"
-            >
-              <option value="">Select Month</option>
-              {["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"].map((m, i) => {
-                const val = `${displayYear}-${String(i + 1).padStart(2, '0')}`
-                return <option key={val} value={val}>{m}</option>
-              })}
-            </select>
-            <div className="absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none text-slate-400 text-xs">▼</div>
-          </div>
-        )}
-
-        {timeframe === 'CUSTOM_RANGE' && (
-          <div className="flex flex-wrap items-center gap-2 animate-in fade-in zoom-in-95 duration-200">
-            <div className="relative">
-              <input 
-                type="date"
-                value={startDate}
-                onChange={(e) => setStartDate(e.target.value)}
-                className="pl-3 pr-2 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm font-bold text-slate-700 focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all shadow-sm"
-              />
-              <span className="absolute -top-2 left-3 bg-white px-1 text-[10px] text-slate-400 font-bold uppercase tracking-tighter">From</span>
+            <div className="relative input-recessed focus-within:input-recessed-focus flex items-center gap-2 flex-1 min-w-[200px] cursor-pointer">
+              <Calendar className="w-5 h-5 text-onyx" />
+              <select 
+                value={timeframe}
+                onChange={(e) => {
+                  setTimeframe(e.target.value)
+                  if (e.target.value !== 'SPECIFIC_DATE') setExactDate('')
+                  if (e.target.value !== 'SPECIFIC_MONTH') setExactMonth('')
+                  if (e.target.value !== 'CUSTOM_RANGE') {
+                    setStartDate('')
+                    setEndDate('')
+                  }
+                }}
+                className="w-full appearance-none bg-transparent text-sm font-medium text-onyx focus:outline-none cursor-pointer"
+              >
+                <option value="TODAY">Today's Tx</option>
+                <option value="SPECIFIC_DATE">Specific Date...</option>
+                <option value="SPECIFIC_MONTH">Specific Month...</option>
+                <option value="CUSTOM_RANGE">Custom Range...</option>
+                <option value="MONTH_FIRST_HALF">1st-15th</option>
+                <option value="MONTH_SECOND_HALF">16th-End</option>
+                <option value="MONTHLY">Current Month</option>
+                <option value="ALL_TIME">All-Time</option>
+              </select>
+              <div className="pointer-events-none text-slate-400 text-xs">▼</div>
             </div>
-            <div className="relative">
-              <input 
-                type="date"
-                value={endDate}
-                onChange={(e) => setEndDate(e.target.value)}
-                className="pl-3 pr-2 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm font-bold text-slate-700 focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all shadow-sm"
-              />
-              <span className="absolute -top-2 left-3 bg-white px-1 text-[10px] text-slate-400 font-bold uppercase tracking-tighter">To</span>
+
+            {/* Conditional Specific Date/Month Inputs */}
+            {timeframe === 'SPECIFIC_DATE' && (
+              <div className="relative input-recessed focus-within:input-recessed-focus flex items-center flex-[1_1_160px] animate-in fade-in zoom-in-95 duration-200">
+                <input 
+                  type="date"
+                  value={exactDate}
+                  onChange={(e) => setExactDate(e.target.value)}
+                  className="w-full bg-transparent text-sm font-medium text-onyx focus:outline-none"
+                />
+              </div>
+            )}
+
+            {timeframe === 'SPECIFIC_MONTH' && (
+              <div className="relative input-recessed focus-within:input-recessed-focus flex items-center gap-2 flex-[1_1_160px] animate-in fade-in zoom-in-95 duration-200">
+                <Calendar className="w-4 h-4 text-slate-400" />
+                <select 
+                  value={exactMonth}
+                  onChange={(e) => setExactMonth(e.target.value)}
+                  className="w-full appearance-none bg-transparent text-sm font-medium text-onyx focus:outline-none cursor-pointer"
+                >
+                  <option value="">Select Month</option>
+                  {["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"].map((m, i) => {
+                    const val = `${displayYear}-${String(i + 1).padStart(2, '0')}`
+                    return <option key={val} value={val}>{m}</option>
+                  })}
+                </select>
+                <div className="pointer-events-none text-slate-400 text-xs">▼</div>
+              </div>
+            )}
+
+            {timeframe === 'CUSTOM_RANGE' && (
+              <div className="flex flex-wrap items-center gap-2 animate-in fade-in zoom-in-95 duration-200">
+                <div className="relative input-recessed focus-within:input-recessed-focus flex items-center">
+                  <input 
+                    type="date"
+                    value={startDate}
+                    onChange={(e) => setStartDate(e.target.value)}
+                    className="bg-transparent text-sm font-medium text-onyx focus:outline-none"
+                  />
+                  <span className="absolute -top-2 left-2 bg-white px-1 text-[10px] text-slate-400 font-bold uppercase tracking-tighter">From</span>
+                </div>
+                <div className="relative input-recessed focus-within:input-recessed-focus flex items-center">
+                  <input 
+                    type="date"
+                    value={endDate}
+                    onChange={(e) => setEndDate(e.target.value)}
+                    className="bg-transparent text-sm font-medium text-onyx focus:outline-none"
+                  />
+                  <span className="absolute -top-2 left-2 bg-white px-1 text-[10px] text-slate-400 font-bold uppercase tracking-tighter">To</span>
+                </div>
+              </div>
+            )}
+
+            {/* Shift Dropdown */}
+            <div className="relative input-recessed focus-within:input-recessed-focus flex items-center gap-2 flex-[1_1_150px] cursor-pointer">
+              <Activity className="w-5 h-5 text-onyx" />
+              <select 
+                value={shift}
+                onChange={(e) => setShift(e.target.value)}
+                className="w-full appearance-none bg-transparent text-sm font-medium text-onyx focus:outline-none cursor-pointer"
+              >
+                <option value="ALL">All Shifts</option>
+                <option value="Morning">Morning</option>
+                <option value="Evening">Evening</option>
+              </select>
+              <div className="pointer-events-none text-slate-400 text-xs">▼</div>
             </div>
+
+            {/* Milk Type Dropdown */}
+            <div className="relative input-recessed focus-within:input-recessed-focus flex items-center gap-2 flex-[1_1_180px] cursor-pointer">
+              <Droplet className="w-5 h-5 text-sky-accent" />
+              <select 
+                value={milkType}
+                onChange={(e) => setMilkType(e.target.value)}
+                className="w-full appearance-none bg-transparent text-sm font-medium text-onyx focus:outline-none cursor-pointer"
+              >
+                <option value="ALL">All Commodities</option>
+                <option value="Cow">🐄 Cow Only</option>
+                <option value="Buffalo">🐃 Buffalo Only</option>
+              </select>
+              <div className="pointer-events-none text-slate-400 text-xs">▼</div>
+            </div>
+
           </div>
-        )}
 
-        {/* Shift Dropdown */}
-        <div className="relative flex-[1_1_150px]">
-          {shift === 'Morning' ? <Sun className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-amber-500" /> :
-           shift === 'Evening' ? <Moon className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-indigo-500" /> :
-           <Activity className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />}
-          <select 
-            value={shift}
-            onChange={(e) => setShift(e.target.value)}
-            className="w-full appearance-none pl-10 pr-10 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm font-bold text-slate-700 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 cursor-pointer transition-all hover:bg-slate-100"
-          >
-            <option value="ALL">All Shifts</option>
-            <option value="Morning">Morning</option>
-            <option value="Evening">Evening</option>
-          </select>
-          <div className="absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none text-slate-400 text-xs">▼</div>
-        </div>
+          <div className="flex flex-wrap gap-4 items-center">
+            
+            {/* Quantity Filter */}
+            <div className="relative input-recessed focus-within:input-recessed-focus flex items-center gap-2 flex-1 min-w-[150px]">
+              <span className="text-sky-accent font-bold text-sm leading-none flex items-center gap-1">
+                #
+                <select 
+                  value={qtyOp}
+                  onChange={(e) => setQtyOp(e.target.value)}
+                  className="appearance-none bg-transparent text-sm font-black text-sky-accent focus:outline-none cursor-pointer w-6 px-0"
+                >
+                  <option value="gt">&gt;</option>
+                  <option value="lt">&lt;</option>
+                  <option value="eq">=</option>
+                </select>
+              </span>
+              <input 
+                type="number"
+                placeholder="Qty Filter"
+                value={minQty}
+                onChange={(e) => setMinQty(e.target.value)}
+                className="border-none bg-transparent outline-none text-sm w-full p-0 text-onyx placeholder:text-slate-400"
+              />
+            </div>
 
-        {/* Milk Type Dropdown */}
-        <div className="relative flex-[1_1_180px]">
-          <Droplet className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-cyan-500" />
-          <select 
-            value={milkType}
-            onChange={(e) => setMilkType(e.target.value)}
-            className="w-full appearance-none pl-10 pr-10 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm font-bold text-slate-700 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 cursor-pointer transition-all hover:bg-slate-100"
-          >
-            <option value="ALL">All Commodities</option>
-            <option value="Cow">🐄 Cow Only</option>
-            <option value="Buffalo">🐃 Buffalo Only</option>
-          </select>
-          <div className="absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none text-slate-400 text-xs">▼</div>
-        </div>
+            {/* Seller Search */}
+            {!isCustomerScope && (
+              <div className="relative input-recessed focus-within:input-recessed-focus flex items-center gap-2 flex-[2] min-w-[250px]">
+                <Search className="w-5 h-5 text-slate-400" />
+                <input 
+                  type="text"
+                  placeholder="Search by Seller Name or ID..."
+                  value={search}
+                  onChange={(e) => setSearch(e.target.value)}
+                  className="border-none bg-transparent outline-none text-sm w-full p-0 text-onyx placeholder:text-slate-400"
+                />
+              </div>
+            )}
 
-        {/* Quantity Filter */}
-        <div className="relative flex-[1_1_200px] flex items-center gap-1 bg-slate-50 border border-slate-200 rounded-xl px-2 h-[41px]">
-          <Hash className="w-4 h-4 text-emerald-500 shrink-0 ml-1" />
-          <select 
-            value={qtyOp}
-            onChange={(e) => setQtyOp(e.target.value)}
-            className="appearance-none bg-transparent text-sm font-black text-emerald-600 focus:outline-none cursor-pointer w-6 px-0"
-          >
-            <option value="gt">&gt;</option>
-            <option value="lt">&lt;</option>
-            <option value="eq">=</option>
-          </select>
-          <input 
-            type="number"
-            placeholder="Qty Filter"
-            value={minQty}
-            onChange={(e) => setMinQty(e.target.value)}
-            className="w-full bg-transparent py-2 px-1 text-sm font-bold text-slate-800 focus:outline-none placeholder:text-slate-400 placeholder:font-medium"
-          />
-        </div>
-        {/* Seller Search - Hidden if inside customer scope */}
-        {!isCustomerScope && (
-          <div className="relative flex-[1_1_250px]">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
-            <input 
-              type="text"
-              placeholder="Search by Seller Name or ID..."
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              className="w-full pl-10 pr-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm font-bold text-slate-700 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all hover:bg-slate-100"
-            />
+            {/* Export Actions are rendered via exportButtons prop within the expanded view on desktop if desired, but we render them at the top right when collapsed. For this design, we will just render them here. */}
+            {exportButtons && (
+              <div className="flex gap-3 ml-auto">
+                {exportButtons}
+              </div>
+            )}
           </div>
-        )}
-
-      </div>
 
       {/* Table & Column Controls */}
-      <div className="flex flex-wrap items-center gap-3 mt-5 pt-5 border-t border-slate-100">
+      {/* Table & Column Controls */}
+      <div className="flex items-center gap-4 border-t border-slate-200/50 pt-4 mt-2 overflow-x-auto custom-scrollbar pb-1">
         <button 
           onClick={() => setHideTable(!hideTable)}
-          className={`flex items-center gap-2 px-3 py-1.5 rounded-lg text-sm font-bold border transition-all ${hideTable ? 'bg-slate-100 text-slate-500 border-slate-200' : 'bg-blue-50 text-blue-600 border-blue-200'}`}
+          className={`shrink-0 flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-bold border transition-all ${hideTable ? 'bg-slate-100 text-slate-500 border-slate-200' : 'bg-sky-50 text-sky-700 border-sky-200'}`}
         >
           {hideTable ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
           {hideTable ? 'Table Hidden' : 'Table Visible'}
@@ -284,13 +313,12 @@ export default function AdminFilters({ currentYear, isCustomerScope, exportButto
 
         {!hideTable && (
           <>
-            <div className="w-px h-6 bg-slate-200 mx-1 hidden sm:block"></div>
-            <div className="flex items-center gap-2">
-              <LayoutTemplate className="w-4 h-4 text-slate-400" />
-              <span className="text-xs font-bold text-slate-400 uppercase tracking-wider hidden sm:block">Visible Columns:</span>
-            </div>
+            <span className="shrink-0 text-[10px] font-bold text-slate-500 uppercase tracking-widest flex items-center gap-1">
+              <LayoutTemplate className="w-4 h-4" />
+              VISIBLE COLUMNS:
+            </span>
             
-            <div className="flex flex-wrap items-center gap-2">
+            <div className="flex items-center gap-2">
               {[
                 { key: 'col_sno', label: 'S.No' },
                 { key: 'col_tx_id', label: 'Tx ID' },
@@ -304,10 +332,10 @@ export default function AdminFilters({ currentYear, isCustomerScope, exportButto
                 <button 
                   key={col.key}
                   onClick={() => toggleCol(col.key)}
-                  className={`px-2.5 py-1 rounded-md text-xs font-bold border transition-all ${
+                  className={`shrink-0 px-2.5 py-1 rounded-md text-xs font-medium border transition-all ${
                     hiddenCols.includes(col.key) 
                       ? 'bg-slate-50 text-slate-400 border-slate-200 line-through opacity-70' 
-                      : 'bg-white text-slate-700 border-slate-300 hover:bg-slate-50 shadow-sm'
+                      : 'bg-white text-onyx border-slate-200 hover:bg-slate-50 shadow-sm'
                   }`}
                 >
                   {col.label}
@@ -315,12 +343,6 @@ export default function AdminFilters({ currentYear, isCustomerScope, exportButto
               ))}
             </div>
           </>
-        )}
-        
-        {exportButtons && (
-          <div className="ml-auto">
-            {exportButtons}
-          </div>
         )}
       </div>
       </div>

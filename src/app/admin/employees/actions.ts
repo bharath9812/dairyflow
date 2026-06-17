@@ -98,3 +98,36 @@ export async function transferPrimaryAdmin(newPrimaryId: string, currentPrimaryI
   revalidatePath('/', 'layout')
   redirect('/admin')
 }
+
+export async function resetEmployeePassword(formData: FormData) {
+  const uid = formData.get('uid') as string
+  const newPassword = formData.get('newPassword') as string
+
+  if (!uid || !newPassword) {
+    redirect('/admin/employees?error=User ID and new password are required.')
+  }
+
+  if (newPassword.length < 6) {
+    redirect('/admin/employees?error=Password must be at least 6 characters.')
+  }
+
+  const ssrClient = await createSSRClient()
+  const { data: { user } } = await ssrClient.auth.getUser()
+
+  if (!user || user.user_metadata?.role !== 'primary') {
+    redirect('/admin')
+  }
+
+  const adminAuth = getAdminClient().auth.admin
+
+  const { error } = await adminAuth.updateUserById(uid, {
+    password: newPassword
+  })
+
+  if (error) {
+    redirect(`/admin/employees?error=${encodeURIComponent(error.message)}`)
+  }
+
+  revalidatePath('/admin/employees', 'page')
+  redirect(`/admin/employees?message=${encodeURIComponent('Password reset successfully! Share the new password with the employee.')}`)
+}

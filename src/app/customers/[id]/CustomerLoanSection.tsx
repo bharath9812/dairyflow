@@ -23,7 +23,7 @@ export default function CustomerLoanSection({ customerId }: { customerId: string
   const [editAmount, setEditAmount] = useState('')
   const [isSavingEdit, setIsSavingEdit] = useState(false)
 
-  const supabase = createClient()
+  const [supabase] = useState(() => createClient())
 
   const fetchLoans = async () => {
     setIsLoading(true)
@@ -108,117 +108,101 @@ export default function CustomerLoanSection({ customerId }: { customerId: string
   }
 
   return (
-    <div className="bg-white rounded-3xl p-6 border border-slate-200 shadow-sm relative overflow-hidden flex flex-col gap-6">
+    <div className="bg-white/70 backdrop-blur-2xl border border-white/40 rounded-xl p-5 shadow-sm flex flex-col gap-4">
       
       {/* Header */}
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-3">
-          <div className={`p-2.5 rounded-xl text-white shadow-lg ${isHealthy ? 'bg-emerald-500 shadow-emerald-200' : 'bg-rose-500 shadow-rose-200'}`}>
-            <Wallet className="w-5 h-5" />
+      <div className="flex justify-between items-start">
+        <div className="flex items-center gap-2">
+          <div className="w-8 h-8 rounded-full bg-emerald-100 flex items-center justify-center text-emerald-700">
+            <Wallet className="w-4 h-4" />
           </div>
           <div>
-            <h3 className="text-lg font-black text-slate-800 tracking-tight leading-none">Advance / Loans</h3>
-            <span className="text-[10px] font-black text-slate-400 tracking-widest uppercase mt-1">Financial State</span>
+            <h3 className="text-sm font-bold text-onyx">Advance / Loans</h3>
+            <p className="text-[10px] text-slate-400 uppercase tracking-wider">Financial State</p>
           </div>
         </div>
         <button 
           onClick={() => setIsModalOpen(true)}
-          className="flex items-center gap-1.5 text-xs font-bold bg-slate-900 text-white hover:bg-slate-800 px-3 py-1.5 rounded-lg transition-all"
+          className="bg-onyx text-white text-xs font-medium px-3 py-1.5 rounded-md flex items-center gap-1 hover:opacity-90 transition-colors"
         >
           <Plus className="w-3.5 h-3.5" /> Issue Funds
         </button>
       </div>
 
       {/* Stats */}
-      <div className="grid grid-cols-2 gap-4">
-        <div className="bg-slate-50 p-4 rounded-2xl border border-slate-100 flex flex-col items-center justify-center text-center">
-          <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Active Balance</span>
-          <span className={`text-2xl font-black ${isHealthy ? 'text-emerald-500' : 'text-rose-600'}`}>
+      <div className="flex gap-4">
+        <div className="flex-1 bg-slate-100 rounded-lg p-3 text-center">
+          <p className="text-[9px] font-bold text-slate-400 uppercase tracking-wider mb-1">Active Balance</p>
+          <p className={`text-lg font-bold font-mono ${isHealthy ? 'text-emerald-600' : 'text-emerald-600'}`}>
             ₹{activeBalance.toLocaleString()}
-          </span>
+          </p>
         </div>
-        <div className="bg-slate-50 p-4 rounded-2xl border border-slate-100 flex flex-col items-center justify-center text-center">
-          <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Recovery Progress</span>
-          <span className="text-xl font-black text-slate-800">
+        <div className="flex-1 bg-slate-100 rounded-lg p-3 text-center flex flex-col justify-center">
+          <p className="text-[9px] font-bold text-slate-400 uppercase tracking-wider mb-1">Recovery Progress</p>
+          <p className="text-sm font-bold text-onyx font-mono mb-1">
             {totalBorrowed > 0 ? Math.round((totalRecovered / totalBorrowed) * 100) : 0}%
-          </span>
-          <div className="w-full bg-slate-200 h-1.5 rounded-full mt-2 overflow-hidden">
+          </p>
+          <div className="w-full bg-slate-200/50 h-1 rounded-full overflow-hidden">
             <div 
-              className="bg-blue-500 h-full rounded-full transition-all duration-500" 
+              className="bg-onyx h-full rounded-full transition-all duration-500" 
               style={{ width: `${totalBorrowed > 0 ? (totalRecovered / totalBorrowed) * 100 : 0}%` }}
             ></div>
           </div>
         </div>
       </div>
 
-      {/* History List */}
-      <div className="flex-1 min-h-[100px] border border-slate-100 rounded-2xl overflow-hidden flex flex-col bg-white">
-        <div className="bg-slate-50 px-4 py-2 border-b border-slate-100 text-[10px] font-black text-slate-500 uppercase tracking-widest">
-          Recent Issuances
-        </div>
-        <div className="flex-1 overflow-y-auto max-h-48 custom-scrollbar">
-          {isLoading ? (
-            <div className="flex items-center justify-center h-full p-6 text-slate-400">
-              <Loader2 className="w-5 h-5 animate-spin" />
-            </div>
-          ) : loans.length === 0 ? (
-            <div className="flex items-center justify-center h-full p-6 text-xs font-bold text-slate-400">
-              No loan history found.
-            </div>
-          ) : (
-            <div className="divide-y divide-slate-100">
-              {loans.map(loan => (
-                <div key={loan.id} className="p-3 hover:bg-slate-50 transition-colors flex items-center justify-between text-sm">
-                  <div className="flex flex-col">
-                    <span className="font-bold text-slate-800">₹{Number(loan.amount).toLocaleString()}</span>
-                    <span className="text-[10px] font-bold text-slate-400">{new Date(loan.issued_date).toLocaleDateString()}</span>
-                  </div>
-                  <div className="flex flex-col items-end">
-                    <span className={`text-[9px] font-black uppercase tracking-widest px-1.5 py-0.5 rounded ${
-                      loan.status === 'CLEARED' ? 'bg-emerald-50 text-emerald-600' : 'bg-rose-50 text-rose-600'
-                    }`}>
-                      {loan.status}
-                    </span>
-                    {loan.status === 'ACTIVE' && (
-                      <span className="text-[10px] font-bold text-slate-500 mt-1">
-                        Bal: ₹{Number(loan.remaining_balance).toLocaleString()}
-                      </span>
-                    )}
-                  </div>
-                  <div className="flex items-center gap-1 ml-3">
-                    <button 
-                      onClick={() => {
-                        setEditingLoan(loan)
-                        setEditAmount(loan.amount)
-                      }}
-                      disabled={deletingLoanId === loan.id}
-                      className="p-1.5 text-slate-300 hover:text-blue-500 hover:bg-blue-50 rounded-lg transition-colors group disabled:opacity-50"
-                      title="Edit Loan"
-                    >
-                      <Pencil className="w-3.5 h-3.5 group-hover:scale-110 transition-transform" />
-                    </button>
-                    <button 
-                      onClick={() => handleDeleteLoan(loan.id)}
-                      disabled={deletingLoanId === loan.id}
-                      className="p-1.5 text-slate-300 hover:text-rose-500 hover:bg-rose-50 rounded-lg transition-colors group disabled:opacity-50"
-                      title="Delete Loan"
-                    >
-                      {deletingLoanId === loan.id ? <Loader2 className="w-3.5 h-3.5 animate-spin text-rose-500" /> : <Trash2 className="w-3.5 h-3.5 group-hover:scale-110 transition-transform" />}
-                    </button>
-                  </div>
+      {/* Recent Issuances */}
+      <div className="bg-slate-100 rounded-lg p-3 text-center border border-dashed border-slate-200/50">
+        <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">Recent Issuances</p>
+        {isLoading ? (
+          <div className="flex items-center justify-center py-2">
+            <Loader2 className="w-4 h-4 animate-spin text-slate-400" />
+          </div>
+        ) : loans.length === 0 ? (
+          <p className="text-xs text-slate-400 italic">No loan history found.</p>
+        ) : (
+          <div className="flex flex-col divide-y divide-slate-200/50 text-left mt-2 max-h-32 overflow-y-auto custom-scrollbar">
+            {loans.map(loan => (
+              <div key={loan.id} className="py-2 flex items-center justify-between text-sm">
+                <div className="flex flex-col">
+                  <span className="font-bold text-onyx text-xs">₹{Number(loan.amount).toLocaleString()}</span>
+                  <span className="text-[10px] text-slate-400">{new Date(loan.issued_date).toLocaleDateString()}</span>
                 </div>
-              ))}
-            </div>
-          )}
-        </div>
+                <div className="flex items-center gap-1">
+                  <span className={`text-[9px] font-bold uppercase tracking-widest px-1.5 py-0.5 rounded ${
+                    loan.status === 'CLEARED' ? 'bg-emerald-50 text-emerald-600' : 'bg-rose-50 text-rose-600'
+                  }`}>
+                    {loan.status}
+                  </span>
+                  <button 
+                    onClick={() => { setEditingLoan(loan); setEditAmount(loan.amount) }}
+                    disabled={deletingLoanId === loan.id}
+                    className="p-1 text-slate-300 hover:text-teal-500 hover:bg-teal-50 rounded transition-colors disabled:opacity-50"
+                    title="Edit Loan"
+                  >
+                    <Pencil className="w-3 h-3" />
+                  </button>
+                  <button 
+                    onClick={() => handleDeleteLoan(loan.id)}
+                    disabled={deletingLoanId === loan.id}
+                    className="p-1 text-slate-300 hover:text-rose-500 hover:bg-rose-50 rounded transition-colors disabled:opacity-50"
+                    title="Delete Loan"
+                  >
+                    {deletingLoanId === loan.id ? <Loader2 className="w-3 h-3 animate-spin text-rose-500" /> : <Trash2 className="w-3 h-3" />}
+                  </button>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
       </div>
 
       {/* Issue Modal */}
       {isModalOpen && typeof document !== 'undefined' && createPortal(
         <div className="fixed inset-0 z-[9999] bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4">
-          <div className="bg-white w-full max-w-sm rounded-3xl shadow-2xl border border-slate-100 overflow-hidden flex flex-col animate-in fade-in zoom-in-95 duration-200">
+          <div className="bg-white w-full max-w-sm rounded-xl shadow-2xl border border-slate-100 overflow-hidden flex flex-col animate-in fade-in zoom-in-95 duration-200">
             <div className="px-6 py-5 border-b border-slate-100 flex items-center justify-between bg-slate-50">
-              <h3 className="font-black text-slate-800 flex items-center gap-2">
+              <h3 className="font-black text-onyx flex items-center gap-2">
                 <Wallet className="w-4 h-4 text-slate-500" /> Issue Advance
               </h3>
               <button onClick={() => setIsModalOpen(false)} className="text-slate-400 hover:text-slate-600 transition-colors">
@@ -231,7 +215,7 @@ export default function CustomerLoanSection({ customerId }: { customerId: string
                 <input 
                   type="number" min="1" step="1" required autoFocus
                   value={amount} onChange={e => setAmount(e.target.value)}
-                  className="w-full px-4 py-3 rounded-xl border border-slate-200 bg-white font-black text-slate-800 text-lg focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 transition-all outline-none"
+                  className="w-full px-4 py-3 rounded-lg border border-slate-200 bg-white font-black text-onyx text-lg focus:border-teal-500 focus:ring-2 focus:ring-teal-500/20 transition-all outline-none"
                   placeholder="5000"
                 />
               </div>
@@ -240,13 +224,13 @@ export default function CustomerLoanSection({ customerId }: { customerId: string
                 <input 
                   type="text" 
                   value={note} onChange={e => setNote(e.target.value)}
-                  className="w-full px-4 py-3 rounded-xl border border-slate-200 bg-white font-semibold text-slate-800 text-sm focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 transition-all outline-none"
+                  className="w-full px-4 py-3 rounded-lg border border-slate-200 bg-white font-semibold text-onyx text-sm focus:border-teal-500 focus:ring-2 focus:ring-teal-500/20 transition-all outline-none"
                   placeholder="e.g. Festival advance"
                 />
               </div>
               <button 
                 type="submit" disabled={isSubmitting}
-                className="w-full bg-slate-900 hover:bg-slate-800 disabled:bg-slate-300 text-white font-black py-3.5 rounded-xl transition-all active:scale-95 flex items-center justify-center gap-2 mt-2"
+                className="w-full bg-onyx hover:opacity-90 disabled:opacity-50 text-white font-black py-3.5 rounded-lg transition-all active:scale-95 flex items-center justify-center gap-2 mt-2"
               >
                 {isSubmitting ? <Loader2 className="w-5 h-5 animate-spin" /> : 'Confirm Disbursal'}
               </button>
@@ -259,9 +243,9 @@ export default function CustomerLoanSection({ customerId }: { customerId: string
       {/* Edit Modal */}
       {editingLoan && typeof document !== 'undefined' && createPortal(
         <div className="fixed inset-0 z-[9999] bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4">
-          <div className="bg-white w-full max-w-sm rounded-3xl shadow-2xl border border-slate-100 overflow-hidden flex flex-col animate-in fade-in zoom-in-95 duration-200">
+          <div className="bg-white w-full max-w-sm rounded-xl shadow-2xl border border-slate-100 overflow-hidden flex flex-col animate-in fade-in zoom-in-95 duration-200">
             <div className="px-6 py-5 border-b border-slate-100 flex items-center justify-between bg-slate-50">
-              <h3 className="font-black text-slate-800 flex items-center gap-2">
+              <h3 className="font-black text-onyx flex items-center gap-2">
                 <Pencil className="w-4 h-4 text-slate-500" /> Edit Loan Amount
               </h3>
               <button onClick={() => setEditingLoan(null)} className="text-slate-400 hover:text-slate-600 transition-colors">
@@ -274,7 +258,7 @@ export default function CustomerLoanSection({ customerId }: { customerId: string
                 <input 
                   type="number" min="1" step="1" required autoFocus
                   value={editAmount} onChange={e => setEditAmount(e.target.value)}
-                  className="w-full px-4 py-3 rounded-xl border border-slate-200 bg-white font-black text-slate-800 text-lg focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 transition-all outline-none"
+                  className="w-full px-4 py-3 rounded-lg border border-slate-200 bg-white font-black text-onyx text-lg focus:border-teal-500 focus:ring-2 focus:ring-teal-500/20 transition-all outline-none"
                   placeholder={editingLoan.amount}
                 />
                 <p className="text-[10px] font-bold text-slate-400 mt-2">
@@ -284,7 +268,7 @@ export default function CustomerLoanSection({ customerId }: { customerId: string
               <button 
                 onClick={handleSaveEdit} 
                 disabled={isSavingEdit || !editAmount}
-                className="w-full bg-slate-900 hover:bg-slate-800 disabled:bg-slate-300 text-white font-black py-3.5 rounded-xl transition-all active:scale-95 flex items-center justify-center gap-2 mt-2"
+                className="w-full bg-onyx hover:opacity-90 disabled:opacity-50 text-white font-black py-3.5 rounded-lg transition-all active:scale-95 flex items-center justify-center gap-2 mt-2"
               >
                 {isSavingEdit ? <Loader2 className="w-5 h-5 animate-spin" /> : 'Save Changes'}
               </button>
