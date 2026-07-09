@@ -22,7 +22,7 @@ export function MultiSelectProvider({ children, allIds }: { children: React.Reac
   }
 
   const handleDelete = async () => {
-    if (!confirm(`Are you sure you want to delete ${selected.size} transactions? This will automatically rollback any loan adjustments linked to them.`)) return
+    if (!confirm(`Are you sure you want to delete ${selected.size} transactions?`)) return
     setIsDeleting(true)
     const res = await deleteTransactions(Array.from(selected))
     if (res?.error) alert(res.error)

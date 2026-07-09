@@ -21,6 +21,8 @@ export const metadata: Metadata = {
   description: "Dairy Supply Chain Intelligence",
 };
 
+import MobileBlocker from "@/components/MobileBlocker";
+
 export default function RootLayout({
   children,
 }: Readonly<{
@@ -31,7 +33,11 @@ export default function RootLayout({
       lang="en"
       className={`${inter.variable} ${jetbrainsMono.variable} h-full antialiased`}
     >
+      <head>
+        <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=0" />
+      </head>
       <body className="min-h-full flex flex-col font-sans bg-surface text-on-surface">
+        <MobileBlocker />
         <TransactionViewModeProvider>
           <SidebarProvider>
             {children}

@@ -282,7 +282,7 @@ export default function CustomersDirectory() {
                   className="w-full text-left p-4 rounded-xl border border-rose-200 bg-rose-50/50 hover:bg-rose-50 hover:border-rose-300 transition-all group disabled:opacity-50"
                 >
                   <div className="font-bold text-rose-700 group-hover:text-rose-800 transition-colors">Delete Customer & Entire Data</div>
-                  <div className="text-xs text-rose-600/70 mt-1">Permanently removes the seller AND all their transactions, loans, and history. Cannot be undone.</div>
+                  <div className="text-xs text-rose-600/70 mt-1">Permanently removes the seller AND all their transactions and history. Cannot be undone.</div>
                 </button>
               </div>
             </div>

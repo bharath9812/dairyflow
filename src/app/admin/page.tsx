@@ -217,24 +217,6 @@ export default async function AdminDashboardPage(props: { searchParams: Promise<
                         <td className="px-6 py-4 text-right align-top">
                           <div className="font-black text-emerald-600">₹{Number(tx.net_payable ?? tx.total_price).toFixed(2)}</div>
                           <div className="text-[10px] font-bold text-slate-400 mt-0.5">@ ₹{Number(tx.price_per_litre)}/L</div>
-                          
-                          {tx.status && tx.status !== 'NORMAL' && (
-                            <div className="mt-2 flex flex-col items-end gap-1">
-                              <div className={`text-[9px] font-bold uppercase tracking-widest px-2 py-0.5 rounded-full inline-block
-                                ${tx.status === 'LOAN_CLEARED' ? 'bg-emerald-50 text-emerald-600 border border-emerald-200/50' : 'bg-amber-50 text-amber-600 border border-amber-200/50'}`}>
-                                {tx.status === 'LOAN_CLEARED' ? 'Loan Cleared' : 'Loan Adjusted'}
-                              </div>
-                              <div className="text-[10px] font-medium text-slate-500 bg-slate-50 border border-slate-200 px-2 py-1 rounded shadow-sm flex flex-col items-end leading-tight mt-1">
-                                <span>Gross: ₹{Number(tx.total_price).toFixed(2)}</span>
-                                <span className="text-rose-500 font-bold">Deduct: -₹{Number(tx.loan_deduction).toFixed(2)}</span>
-                                {tx.loan_balance_after !== undefined && tx.loan_balance_after !== null && (
-                                  <span className="text-amber-600 font-bold border-t border-slate-200 pt-0.5 mt-0.5 w-full text-right">
-                                    Rem Bal: ₹{Number(tx.loan_balance_after).toFixed(2)}
-                                  </span>
-                                )}
-                              </div>
-                            </div>
-                          )}
                         </td>
                       )}
                       {!hiddenCols.includes('col_audit') && (

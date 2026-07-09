@@ -1,7 +1,9 @@
 'use client';
 
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import Link from 'next/link';
+import { createClient } from '@/utils/supabase/client';
+import { fetchCycleConfig, getCurrentCycle, getCycleLabel } from '@/utils/cycle';
 
 interface TopBarProps {
   leftPillLabel: string;
@@ -22,10 +24,34 @@ export default function TopBar({
   rightPillActive = false,
   dateString
 }: TopBarProps) {
+  const [globalCycle, setGlobalCycle] = useState<{ id: string, label: string } | null>(null);
+
+  useEffect(() => {
+    const fetchCycle = async () => {
+      const supabase = createClient();
+      const config = await fetchCycleConfig(supabase);
+      const cycleId = getCurrentCycle(config);
+      const label = getCycleLabel(cycleId, config);
+      setGlobalCycle({ id: cycleId, label });
+    };
+    fetchCycle();
+  }, []);
+
   return (
     <header className="h-[88px] flex items-center justify-between px-8 shrink-0 bg-transparent relative z-20">
-      {/* Spacer for left alignment balancing */}
-      <div className="w-[200px] hidden lg:block"></div>
+      {/* Left Cycle Indicator */}
+      <div className="w-[250px] hidden lg:flex items-center">
+        {globalCycle && (
+          <div className="flex flex-col animate-fade-in-up">
+            <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-0.5 ml-1">Calendar Cycle</span>
+            <div className="flex items-center gap-2">
+              <span className="text-xs font-bold text-indigo-700 bg-indigo-50 px-3 py-1 rounded-full border border-indigo-200 shadow-sm">
+                {globalCycle.id}
+              </span>
+            </div>
+          </div>
+        )}
+      </div>
 
       {/* Centered Switcher */}
       <div className="flex-1 flex justify-center">
@@ -54,7 +80,7 @@ export default function TopBar({
       </div>
 
       {/* Right Aligned Date */}
-      <div className="w-[200px] hidden lg:flex justify-end">
+      <div className="w-[250px] hidden lg:flex justify-end">
         {dateString && (
           <span className="font-mono text-sm font-medium text-slate-600">
             {dateString}

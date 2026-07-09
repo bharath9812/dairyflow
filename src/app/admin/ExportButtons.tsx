@@ -20,7 +20,7 @@ export default function ExportButtons({ timeframe, exactDate, exactMonth, startD
     try {
       const res = await fetch(`/api/export?${queryStr}&format=json`)
       const json = await res.json()
-      
+
       if (!json.data || json.data.length === 0) {
         alert('No data matches the current filters for PDF export.')
         setIsExportingPDF(false)
@@ -28,7 +28,7 @@ export default function ExportButtons({ timeframe, exactDate, exactMonth, startD
       }
 
       const doc = new jsPDF()
-      
+
       let timeLabel = timeframe
       if (timeframe === 'SPECIFIC_DATE') timeLabel = exactDate
       if (timeframe === 'SPECIFIC_MONTH') timeLabel = exactMonth
@@ -39,13 +39,10 @@ export default function ExportButtons({ timeframe, exactDate, exactMonth, startD
       json.data.forEach((tx: any) => {
         const v = Number(tx.quantity_litres)
         const tp = Number(tx.total_price)
-        const ded = Number(tx.loan_deduction) || 0
-        
         sumVol += v
         sumCap += tp
-        sumDed += ded
-        sumNet += (tp - ded)
-        
+        sumNet += tp
+
         if (tx.milk_type === 'Cow') cowVol += v
         if (tx.milk_type === 'Buffalo') bufVol += v
         if (tx.shift === 'Morning') mornVol += v
@@ -95,24 +92,21 @@ export default function ExportButtons({ timeframe, exactDate, exactMonth, startD
         doc.setTextColor(15, 23, 42)
         doc.text(`ID: #${sellerCode}  |  Name: ${sellerName}`, 18, 58)
         doc.text(`${timeLabel}`, 110, 58)
-        
-        doc.text(`Phone: ${json.data[0].customers?.contact || 'N/A'}`, 18, 64)
+
+        doc.text(`Phone: ${json.data[0].customers?.contact || 'N/A'}  |  Location: ${json.data[0].customers?.location || 'N/A'}`, 18, 64)
         doc.text(`Generated On: ${new Date().toLocaleDateString('en-GB')}`, 110, 64)
 
         // 4. Transactions Table
-        const tableColumn = ['Date', 'Shift', 'Type', 'Qty (L)', 'Rate/L', 'Gross (Rs)', 'Deduction', 'Net (Rs)']
+        const tableColumn = ['Date', 'Shift', 'Type', 'Qty (L)', 'Rate/L', 'Gross (Rs)']
         const tableRows = json.data.map((tx: any) => {
           const tp = Number(tx.total_price)
-          const ded = Number(tx.loan_deduction) || 0
           return [
             new Date(tx.transaction_date).toLocaleDateString('en-GB'),
             tx.shift === 'Morning' ? 'Morn' : 'Eve',
             tx.milk_type,
             Number(tx.quantity_litres).toFixed(1),
             Number(tx.price_per_litre).toFixed(2),
-            tp.toFixed(2),
-            ded > 0 ? `-${ded.toFixed(2)}` : '-',
-            (tp - ded).toFixed(2)
+            tp.toFixed(2)
           ]
         })
 
@@ -124,53 +118,10 @@ export default function ExportButtons({ timeframe, exactDate, exactMonth, startD
           headStyles: { fillColor: [30, 64, 175], fontSize: 9, fontStyle: 'bold', halign: 'center' },
           bodyStyles: { fontSize: 8, textColor: [51, 65, 85], halign: 'center' },
           alternateRowStyles: { fillColor: [248, 250, 252] },
-          didParseCell: function (data) {
-             if (data.section === 'body' && data.column.index === 6 && data.cell.raw !== '-') {
-                 data.cell.styles.textColor = [225, 29, 72] // Red for deduction
-                 data.cell.styles.fontStyle = 'bold'
-             }
-             if (data.section === 'body' && data.column.index === 7) {
-                 data.cell.styles.fontStyle = 'bold'
-             }
-          }
+
         })
 
-        // Draw Loan History Table BEFORE Financial Summary
-        if (json.loans && json.loans.length > 0) {
-          let currentY = (doc as any).lastAutoTable.finalY + 15
-          
-          doc.setFontSize(11)
-          doc.setFont("helvetica", "bold")
-          doc.setTextColor(15, 23, 42)
-          doc.text("Customer Loan / Advance Ledger", 14, currentY)
-          currentY += 6
 
-          const loanTableRows = json.loans.map((loan: any) => {
-            return [
-              new Date(loan.created_at).toLocaleDateString('en-GB'),
-              `L-${loan.id.split('-')[0].toUpperCase()}`,
-              Number(loan.amount).toFixed(2),
-              Number(loan.recovered_amount).toFixed(2),
-              (Number(loan.amount) - Number(loan.recovered_amount)).toFixed(2),
-              loan.status
-            ]
-          })
-
-          autoTable(doc, {
-            head: [['Issued Date', 'Loan ID', 'Amount (INR)', 'Recovered (INR)', 'Pending (INR)', 'Status']],
-            body: loanTableRows,
-            startY: currentY,
-            theme: 'striped',
-            headStyles: { fillColor: [71, 85, 105], fontSize: 9, fontStyle: 'bold' },
-            bodyStyles: { fontSize: 8 },
-            didParseCell: function (data) {
-              if (data.section === 'body' && data.column.index === 5) {
-                if (data.cell.raw === 'ACTIVE') data.cell.styles.textColor = [37, 99, 235] // blue
-                if (data.cell.raw === 'CLEARED') data.cell.styles.textColor = [16, 185, 129] // green
-              }
-            }
-          })
-        }
 
         const finalY = Math.max((doc as any).lastAutoTable.finalY + 10, 100)
 
@@ -183,7 +134,7 @@ export default function ExportButtons({ timeframe, exactDate, exactMonth, startD
         doc.setFont("helvetica", "normal")
         doc.setTextColor(71, 85, 105)
         doc.text("Total Volume (Liters):", 105, finalY + 8)
-        
+
         doc.setFontSize(8)
         doc.setTextColor(148, 163, 184)
         doc.text(`(Cow: ${cowVol.toFixed(1)} L  |  Buffalo: ${bufVol.toFixed(1)} L)`, 105, finalY + 13)
@@ -191,31 +142,25 @@ export default function ExportButtons({ timeframe, exactDate, exactMonth, startD
         doc.setFontSize(10)
         doc.setTextColor(71, 85, 105)
         doc.text("Gross Payable:", 105, finalY + 20)
-        doc.text("Total Loan Deductions:", 105, finalY + 27)
-        
+
         doc.setFont("helvetica", "bold")
         doc.setTextColor(15, 23, 42)
         doc.text(`${sumVol.toFixed(1)} L`, 190, finalY + 8, { align: "right" })
         doc.text(`Rs. ${sumCap.toFixed(2)}`, 190, finalY + 20, { align: "right" })
-        doc.setTextColor(225, 29, 72)
-        doc.text(`- Rs. ${sumDed.toFixed(2)}`, 190, finalY + 27, { align: "right" })
 
-        doc.setLineWidth(0.2)
-        doc.setDrawColor(148, 163, 184)
-        doc.line(105, finalY + 31, 190, finalY + 31)
-
-        doc.setFontSize(12)
+        doc.setFontSize(11)
         doc.setTextColor(30, 64, 175)
-        doc.text("NET PAYABLE:", 105, finalY + 38)
-        doc.text(`Rs. ${sumNet.toFixed(2)}`, 190, finalY + 38, { align: "right" })
+        doc.text("NET PAYABLE TO SELLER:", 105, finalY + 34)
+        doc.setFontSize(12)
+        doc.text(`Rs. ${sumNet.toFixed(2)}`, 190, finalY + 34, { align: "right" })
 
         // 6. Signature Lines
         let sigY = finalY + 60
         if (sigY > 270) {
-            doc.addPage()
-            sigY = 40
+          doc.addPage()
+          sigY = 40
         }
-        
+
         doc.setFontSize(10)
         doc.setFont("helvetica", "bold")
         doc.setTextColor(100, 116, 139)
@@ -234,7 +179,7 @@ export default function ExportButtons({ timeframe, exactDate, exactMonth, startD
         // ==========================================
         // GLOBAL ADMIN EXPORT (OFFICIAL STYLE)
         // ==========================================
-        
+
         // 1. Dairy Farm Header (Center Aligned)
         doc.setFontSize(22)
         doc.setFont("helvetica", "bold")
@@ -269,11 +214,11 @@ export default function ExportButtons({ timeframe, exactDate, exactMonth, startD
 
         doc.setFont("helvetica", "normal")
         doc.setTextColor(15, 23, 42)
-        
+
         const qtyLabel = minQty ? `${qtyOp === 'eq' ? '=' : qtyOp === 'lt' ? '<' : '>'} ${minQty}L` : 'None'
         doc.text(`Commodity: ${milkType === 'ALL' ? 'Cow & Buffalo' : milkType}  |  Shift: ${shift}`, 18, 58)
         doc.text(`${timeLabel}`, 110, 58)
-        
+
         doc.text(`Qty Filter: ${qtyLabel}  |  Search: ${search || 'None'}`, 18, 64)
         doc.text(`Generated On: ${new Date().toLocaleDateString('en-GB')}`, 110, 64)
 
@@ -284,7 +229,7 @@ export default function ExportButtons({ timeframe, exactDate, exactMonth, startD
         if (!hiddenCols.includes('col_seller')) tableColumn.push('Seller ID', 'Name')
         if (!hiddenCols.includes('col_type')) tableColumn.push('Type')
         if (!hiddenCols.includes('col_volume')) tableColumn.push('Volume (L)')
-        if (!hiddenCols.includes('col_capital')) tableColumn.push('Rate', 'Gross (INR)', 'Net Payable', 'Loan')
+        if (!hiddenCols.includes('col_capital')) tableColumn.push('Rate', 'Gross (INR)', 'Net Payable')
         if (!hiddenCols.includes('col_audit')) tableColumn.push('Audit Trail')
 
         const tableRows = json.data.map((tx: any, index: number) => {
@@ -306,19 +251,11 @@ export default function ExportButtons({ timeframe, exactDate, exactMonth, startD
           }
           if (!hiddenCols.includes('col_capital')) {
             const tp = Number(tx.total_price)
-            const ded = Number(tx.loan_deduction) || 0
-            const np = tp - ded
-            
+            const np = tp
+
             row.push(Number(tx.price_per_litre).toFixed(2))
             row.push(tp.toFixed(2))
-            
-            if (tx.status !== 'NORMAL' && ded > 0) {
-              row.push(`${np.toFixed(2)}\n(Ded: ${ded.toFixed(2)})`)
-              row.push(`-${ded.toFixed(2)}`)
-            } else {
-              row.push(np.toFixed(2))
-              row.push('-')
-            }
+            row.push(np.toFixed(2))
           }
           if (!hiddenCols.includes('col_audit')) {
             row.push(`C: ${tx.created_by_name || 'Admin'} (${new Date(tx.created_at).toLocaleDateString('en-GB')})`)
@@ -334,19 +271,7 @@ export default function ExportButtons({ timeframe, exactDate, exactMonth, startD
           headStyles: { fillColor: [15, 23, 42], fontSize: 8, fontStyle: 'bold', halign: 'center' },
           bodyStyles: { fontSize: 7, textColor: [51, 65, 85], halign: 'center' },
           alternateRowStyles: { fillColor: [248, 250, 252] },
-          didParseCell: function (data) {
-            if (data.section === 'body') {
-              const rowData = json.data[data.row.index];
-              if (rowData && rowData.status !== 'NORMAL' && (Number(rowData.loan_deduction) > 0)) {
-                data.cell.styles.fillColor = [254, 242, 242];
-                // Assuming Loan is the last or second to last column depending on hiddenCols
-                if (data.column.index >= tableColumn.length - 2 && !hiddenCols.includes('col_capital')) {
-                  data.cell.styles.textColor = [225, 29, 72];
-                  data.cell.styles.fontStyle = 'bold';
-                }
-              }
-            }
-          }
+
         })
 
         const finalY = Math.max((doc as any).lastAutoTable.finalY + 10, 100)
@@ -360,7 +285,7 @@ export default function ExportButtons({ timeframe, exactDate, exactMonth, startD
         doc.setFont("helvetica", "normal")
         doc.setTextColor(71, 85, 105)
         doc.text("Total Global Volume:", 105, finalY + 8)
-        
+
         doc.setFontSize(8)
         doc.setTextColor(148, 163, 184)
         doc.text(`(Cow: ${cowVol.toFixed(1)} L  |  Buffalo: ${bufVol.toFixed(1)} L)`, 105, finalY + 13)
@@ -368,31 +293,25 @@ export default function ExportButtons({ timeframe, exactDate, exactMonth, startD
         doc.setFontSize(10)
         doc.setTextColor(71, 85, 105)
         doc.text("Total Gross Capital:", 105, finalY + 20)
-        doc.text("Total Loan Deductions:", 105, finalY + 27)
-        
+
         doc.setFont("helvetica", "bold")
         doc.setTextColor(15, 23, 42)
         doc.text(`${sumVol.toFixed(1)} L`, 190, finalY + 8, { align: "right" })
         doc.text(`Rs. ${sumCap.toFixed(2)}`, 190, finalY + 20, { align: "right" })
-        doc.setTextColor(225, 29, 72)
-        doc.text(`- Rs. ${sumDed.toFixed(2)}`, 190, finalY + 27, { align: "right" })
 
-        doc.setLineWidth(0.2)
-        doc.setDrawColor(148, 163, 184)
-        doc.line(105, finalY + 31, 190, finalY + 31)
-
-        doc.setFontSize(12)
+        doc.setFontSize(11)
         doc.setTextColor(15, 23, 42)
-        doc.text("NET GLOBAL PAYABLE:", 105, finalY + 38)
-        doc.text(`Rs. ${sumNet.toFixed(2)}`, 190, finalY + 38, { align: "right" })
-        
+        doc.text("NET POOL PAYABLE:", 105, finalY + 34)
+        doc.setFontSize(12)
+        doc.text(`Rs. ${sumNet.toFixed(2)}`, 190, finalY + 34, { align: "right" })
+
         // 6. Signatures (Global Admin)
         let sigY = finalY + 60
         if (sigY > 270) {
-            doc.addPage()
-            sigY = 40
+          doc.addPage()
+          sigY = 40
         }
-        
+
         doc.setFontSize(10)
         doc.setFont("helvetica", "bold")
         doc.setTextColor(100, 116, 139)
@@ -441,19 +360,19 @@ export default function ExportButtons({ timeframe, exactDate, exactMonth, startD
 
   return (
     <div className="flex flex-col sm:flex-row items-center gap-3 w-full lg:w-auto mt-4 lg:mt-0">
-      <button 
+      <button
         onClick={downloadCSV}
         className="w-full sm:w-auto flex items-center justify-center gap-2 bg-white/50 border border-white/60 hover:bg-white/80 text-sky-accent px-4 py-2.5 rounded-xl text-sm font-bold transition-all shadow-sm backdrop-blur-sm"
       >
         <Download className="w-4 h-4" /> CSV Export
       </button>
 
-      <button 
+      <button
         onClick={downloadPDF}
         disabled={isExportingPDF}
         className="w-full sm:w-auto flex items-center justify-center gap-2 bg-white/50 border border-white/60 hover:bg-white/80 text-sky-accent px-4 py-2.5 rounded-xl text-sm font-bold transition-all shadow-sm backdrop-blur-sm disabled:opacity-70 disabled:cursor-not-allowed"
       >
-        {isExportingPDF ? <Loader2 className="w-4 h-4 animate-spin" /> : <FileText className="w-4 h-4" />} 
+        {isExportingPDF ? <Loader2 className="w-4 h-4 animate-spin" /> : <FileText className="w-4 h-4" />}
         {isExportingPDF ? 'Building PDF...' : 'PDF Receipt'}
       </button>
     </div>

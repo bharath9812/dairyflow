@@ -22,17 +22,10 @@ export async function deleteCustomerComplete(customerId: string) {
   const adminClient = getAdminClient()
 
   try {
-    // Delete payments first (has NO ACTION constraint)
-    const res1 = await adminClient.from('payments').delete().eq('customer_id', customerId)
-    if (res1.error) return { error: `Failed to clear payments: ${res1.error.message}` }
 
     // Explicitly delete remaining top-level child records
-    // (Note: loan_recoveries automatically cascade-deletes when transactions/loans are deleted)
     const res2 = await adminClient.from('transactions').delete().eq('customer_id', customerId)
     if (res2.error) return { error: `Failed to clear transactions: ${res2.error.message}` }
-    
-    const res3 = await adminClient.from('customer_loans').delete().eq('customer_id', customerId)
-    if (res3.error) return { error: `Failed to clear customer loans: ${res3.error.message}` }
     
     // Delete the customer profile
     const { error } = await adminClient.from('customers').delete().eq('id', customerId)

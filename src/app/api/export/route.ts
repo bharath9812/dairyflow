@@ -23,12 +23,12 @@ export async function GET(request: Request) {
 
   let query = supabase
     .from('transactions')
-    .select('*, customers!inner(seller_id, name)')
+    .select('*, customers!inner(seller_id, name, contact, location)')
 
   if (shift !== 'ALL') query = query.eq('shift', shift)
   if (milkType !== 'ALL') query = query.eq('milk_type', milkType)
   if (customerId) query = query.eq('customer_id', customerId)
-  
+
   const qtyOp = searchParams.get('qtyOp') || 'gt'
   if (minQty && Number(minQty) > 0) {
     const op = qtyOp === 'eq' ? 'eq' : qtyOp === 'lt' ? 'lt' : 'gt'
@@ -84,11 +84,7 @@ export async function GET(request: Request) {
     return NextResponse.json({ error: 'Failed to stream data' }, { status: 500 })
   }
 
-  let loansData: any[] = []
-  if (customerId && format === 'json') {
-    const { data: ld } = await supabase.from('customer_loans').select('*').eq('customer_id', customerId).order('created_at', { ascending: false })
-    if (ld) loansData = ld
-  }
+
 
   if (format === 'csv') {
     const headerParts = []
@@ -97,7 +93,7 @@ export async function GET(request: Request) {
     if (!hiddenCols.includes('col_seller')) headerParts.push('Seller ID', 'Seller Name')
     if (!hiddenCols.includes('col_type')) headerParts.push('Milk Type')
     if (!hiddenCols.includes('col_volume')) headerParts.push('Quantity (L)')
-    if (!hiddenCols.includes('col_capital')) headerParts.push('Rate (INR)', 'Gross Price (INR)', 'Net Payable (INR)', 'Loan Deduction (INR)')
+    if (!hiddenCols.includes('col_capital')) headerParts.push('Rate (INR)', 'Gross Price (INR)', 'Net Payable (INR)')
     if (!hiddenCols.includes('col_audit')) headerParts.push('Audit Trail')
 
     const csvContent = [
@@ -110,8 +106,8 @@ export async function GET(request: Request) {
         if (!hiddenCols.includes('col_type')) rowParts.push(tx.milk_type)
         if (!hiddenCols.includes('col_volume')) rowParts.push(tx.quantity_litres)
         if (!hiddenCols.includes('col_capital')) {
-          const np = (Number(tx.total_price) - (Number(tx.loan_deduction) || 0)).toFixed(2)
-          rowParts.push(tx.price_per_litre, tx.total_price, np, tx.loan_deduction || 0)
+          const np = (Number(tx.total_price)).toFixed(2)
+          rowParts.push(tx.price_per_litre, tx.total_price, np)
         }
         if (!hiddenCols.includes('col_audit')) {
           const creation = `C: ${tx.created_by_name || 'Admin'} (${new Date(tx.created_at).toLocaleDateString()})`
@@ -151,7 +147,7 @@ export async function GET(request: Request) {
   }
 
   if (format === 'json') {
-    return NextResponse.json({ data, loans: loansData })
+    return NextResponse.json({ data })
   }
 
   return NextResponse.json({ error: 'Unsupported format' }, { status: 400 })

@@ -13,7 +13,7 @@ export default function TransactionActionCell({ tx, onUpdate }: { tx: any, onUpd
   const router = useRouter()
 
   const handleDelete = async () => {
-    if (!confirm('Are you sure you want to delete this transaction? This will automatically rollback any loan adjustments linked to it.')) return
+    if (!confirm('Are you sure you want to delete this transaction?')) return
     setIsDeleting(true)
     const res = await deleteTransactions([tx.id])
     if (res?.error) {
@@ -22,6 +22,7 @@ export default function TransactionActionCell({ tx, onUpdate }: { tx: any, onUpd
     } else {
       if (onUpdate) onUpdate()
       else router.refresh()
+      setIsDeleting(false)
     }
   }
 

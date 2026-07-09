@@ -16,7 +16,7 @@ export default function TransactionDashboard() {
   const [supabase] = useState(() => createClient())
   const { mode, toggleMode } = useTransactionViewMode()
   const [date, setDate] = useState(() => new Date().toISOString().split('T')[0])
-  const [milkType, setMilkType] = useState('Cow')
+  const [milkType, setMilkType] = useState('Buffalo')
   const [shift, setShift] = useState('Morning')
   const [quantity, setQuantity] = useState<number | ''>('')
   const [fatPercentage, setFatPercentage] = useState<number | ''>('')
@@ -132,12 +132,6 @@ export default function TransactionDashboard() {
       <div className="flex flex-1 h-[100dvh] overflow-hidden">
         {/* Persistent Sidebar (Desktop) */}
         <Sidebar
-          links={[
-            { label: 'Daily Milk Entry', href: '/', icon: <PlusCircle className="w-5 h-5" />, isActive: true },
-            // { label: 'Ledger', href: '#', icon: <BookText className="w-5 h-5" /> },
-            // { label: 'Payments', href: '#', icon: <Banknote className="w-5 h-5" /> },
-            { label: 'Reports', href: '/admin', icon: <BarChart3 className="w-5 h-5" /> },
-          ]}
           onLogout={async () => { await supabase.auth.signOut(); router.push('/login'); }}
         />
 
@@ -415,21 +409,6 @@ export default function TransactionDashboard() {
                             <div className="font-mono font-bold text-[15px] text-onyx">
                               ₹{Number(tx.net_payable ?? tx.total_price).toFixed(2)}
                             </div>
-
-                            {tx.status && tx.status !== 'NORMAL' && (
-                              <>
-                                <div className={`text-[9px] font-bold px-1.5 py-0.5 rounded uppercase tracking-wider ${tx.status === 'LOAN_CLEARED' ? 'bg-emerald-100 text-emerald-800' : 'bg-amber-100 text-amber-800'}`}>
-                                  {tx.status === 'LOAN_CLEARED' ? 'Loan Cleared' : 'Loan Adjusted'}
-                                </div>
-                                <div className="border border-slate-200/50 rounded bg-white/50 p-1 text-[9px] font-mono text-right leading-tight w-full mt-1">
-                                  <div className="text-slate-500">Gross: ₹{Number(tx.total_price).toFixed(2)}</div>
-                                  <div className="text-rose-500 font-medium">Deduct: -₹{Number(tx.loan_deduction).toFixed(2)}</div>
-                                  {tx.loan_balance_after !== undefined && (
-                                    <div className="text-amber-700 font-medium">Rem Bal: ₹{Number(tx.loan_balance_after).toFixed(2)}</div>
-                                  )}
-                                </div>
-                              </>
-                            )}
                           </div>
 
                           <div className="flex items-center justify-end pt-1">

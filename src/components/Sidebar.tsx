@@ -3,7 +3,7 @@
 import React, { useState } from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { LogOut, UserCircle, ChevronLeft, ChevronRight, Droplets } from 'lucide-react';
+import { LogOut, UserCircle, ChevronLeft, ChevronRight, Droplets, Settings, PlusCircle, BarChart3, Activity, Landmark, Receipt } from 'lucide-react';
 import { useSidebar } from '@/components/SidebarContext';
 
 export type SidebarLink = {
@@ -16,14 +16,22 @@ export type SidebarLink = {
 interface SidebarProps {
   title?: string;
   subtitle?: string;
-  links: SidebarLink[];
+  links?: SidebarLink[];
   onLogout?: () => void;
 }
+
+const DEFAULT_LINKS: SidebarLink[] = [
+  { label: 'Daily Milk Entry', href: '/', icon: <PlusCircle className="w-5 h-5" /> },
+  { label: 'Reports', href: '/admin', icon: <BarChart3 className="w-5 h-5" /> },
+  { label: 'Live Tracker', href: '/live', icon: <Activity className="w-5 h-5" /> },
+  { label: 'Loans', href: '/loan', icon: <Landmark className="w-5 h-5" /> },
+  { label: 'Payouts', href: '/payout', icon: <Receipt className="w-5 h-5" /> },
+];
 
 export default function Sidebar({
   title = "Lumina",
   subtitle = "DAIRY TERMINAL",
-  links,
+  links = DEFAULT_LINKS,
   onLogout
 }: SidebarProps) {
   const { isCollapsed, toggleSidebar, isMounted } = useSidebar();
@@ -84,6 +92,15 @@ export default function Sidebar({
 
       {/* Footer Actions */}
       <div className="p-4 flex flex-col gap-2 border-t border-slate-100">
+        <Link
+          href="/admin/settings"
+          className={`flex items-center gap-3 px-3 py-3 rounded-xl text-slate-600 hover:bg-white hover:shadow-sm hover:text-onyx border border-transparent hover:border-slate-200 transition-all group
+            ${effectiveCollapsed ? 'justify-center' : ''}`}
+          title={effectiveCollapsed ? "Settings" : undefined}
+        >
+          <Settings className="w-5 h-5 shrink-0" />
+          {!effectiveCollapsed && <span className="font-semibold text-sm whitespace-nowrap animate-in fade-in duration-300">Settings</span>}
+        </Link>
         <Link
           href="/admin/profile"
           className={`flex items-center gap-3 px-3 py-3 rounded-xl text-slate-600 hover:bg-white hover:shadow-sm hover:text-onyx border border-transparent hover:border-slate-200 transition-all group

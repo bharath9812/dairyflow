@@ -156,7 +156,7 @@ export default function AdminFilters({ currentYear, isCustomerScope, exportButto
                 }}
                 className="w-full appearance-none bg-transparent text-sm font-medium text-onyx focus:outline-none cursor-pointer"
               >
-                <option value="TODAY">Today's Tx</option>
+                <option value="TODAY">Today&apos;s Tx</option>
                 <option value="SPECIFIC_DATE">Specific Date...</option>
                 <option value="SPECIFIC_MONTH">Specific Month...</option>
                 <option value="CUSTOM_RANGE">Custom Range...</option>

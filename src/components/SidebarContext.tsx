@@ -10,7 +10,7 @@ interface SidebarContextType {
 
 const SidebarContext = createContext<SidebarContextType>({
   isCollapsed: false,
-  toggleSidebar: () => {},
+  toggleSidebar: () => { },
   isMounted: false,
 });
 
@@ -36,9 +36,9 @@ export const SidebarProvider = ({ children }: { children: React.ReactNode }) => 
 
   return (
     <SidebarContext.Provider value={{ isCollapsed, toggleSidebar, isMounted }}>
-      <div 
-        className="contents" 
-        style={{ 
+      <div
+        className="contents"
+        style={{
           '--sidebar-width': isMounted && isCollapsed ? '80px' : '240px'
         } as React.CSSProperties}
       >
