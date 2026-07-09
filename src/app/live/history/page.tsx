@@ -34,7 +34,8 @@ export default function LiveHistoryPage() {
     
     if (data && data.length > 0) {
       // Get unique cycles and sort descending
-      const uniqueCycles = Array.from(new Set(data.map(d => d.cycle_identifier))).sort().reverse()
+      const uniqueCycles = Array.from(new Set(data.map((d: { cycle_identifier: string | null }) => d.cycle_identifier))).filter((cycle): cycle is string => cycle !== null)
+      uniqueCycles.sort().reverse()
       setAvailableCycles(uniqueCycles)
       if (uniqueCycles.length > 0) {
         setSelectedCycle(uniqueCycles[0])
