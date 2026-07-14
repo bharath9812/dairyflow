@@ -88,10 +88,10 @@ export type Database = {
           cycle_end_date: string
           cycle_identifier: string
           cycle_start_date: string
-          evening_shifts_count: number | null
+          am_shifts_count: number | null
           id: string
           last_transaction_date: string | null
-          morning_shifts_count: number | null
+          pm_shifts_count: number | null
           total_buffalo_litres: number | null
           total_cow_litres: number | null
           total_earnings: number | null
@@ -104,10 +104,10 @@ export type Database = {
           cycle_end_date: string
           cycle_identifier: string
           cycle_start_date: string
-          evening_shifts_count?: number | null
+          am_shifts_count?: number | null
           id?: string
           last_transaction_date?: string | null
-          morning_shifts_count?: number | null
+          pm_shifts_count?: number | null
           total_buffalo_litres?: number | null
           total_cow_litres?: number | null
           total_earnings?: number | null
@@ -120,10 +120,10 @@ export type Database = {
           cycle_end_date?: string
           cycle_identifier?: string
           cycle_start_date?: string
-          evening_shifts_count?: number | null
+          am_shifts_count?: number | null
           id?: string
           last_transaction_date?: string | null
-          morning_shifts_count?: number | null
+          pm_shifts_count?: number | null
           total_buffalo_litres?: number | null
           total_cow_litres?: number | null
           total_earnings?: number | null

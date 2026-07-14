@@ -65,10 +65,21 @@ export async function GET(request: Request) {
   } else if (timeframe === 'CUSTOM_RANGE' && startDate && endDate) {
     query = query.gte('transaction_date', startDate).lte('transaction_date', endDate)
   } else if (timeframe === 'MONTH_FIRST_HALF') {
-    query = query.gte('transaction_date', `${year}-${mm}-01`).lte('transaction_date', `${year}-${mm}-15`)
+    if (exactMonth) {
+      const [yy, exMm] = exactMonth.split('-')
+      query = query.gte('transaction_date', `${yy}-${exMm}-01`).lte('transaction_date', `${yy}-${exMm}-15`)
+    } else {
+      query = query.gte('transaction_date', `${year}-${mm}-01`).lte('transaction_date', `${year}-${mm}-15`)
+    }
   } else if (timeframe === 'MONTH_SECOND_HALF') {
-    const lastDay = new Date(year, month + 1, 0).getDate()
-    query = query.gte('transaction_date', `${year}-${mm}-16`).lte('transaction_date', `${year}-${mm}-${String(lastDay).padStart(2, '0')}`)
+    if (exactMonth) {
+      const [yy, exMm] = exactMonth.split('-')
+      const lastDay = new Date(Number(yy), Number(exMm), 0).getDate()
+      query = query.gte('transaction_date', `${yy}-${exMm}-16`).lte('transaction_date', `${yy}-${exMm}-${String(lastDay).padStart(2, '0')}`)
+    } else {
+      const lastDay = new Date(year, month + 1, 0).getDate()
+      query = query.gte('transaction_date', `${year}-${mm}-16`).lte('transaction_date', `${year}-${mm}-${String(lastDay).padStart(2, '0')}`)
+    }
   } else if (timeframe === 'MONTHLY') {
     const lastDay = new Date(year, month + 1, 0).getDate()
     query = query.gte('transaction_date', `${year}-${mm}-01`).lte('transaction_date', `${year}-${mm}-${String(lastDay).padStart(2, '0')}`)
@@ -76,8 +87,18 @@ export async function GET(request: Request) {
     // Pass
   }
 
-  query = query.order('transaction_date', { ascending: false })
-
+  const sortBy = searchParams.get('sortBy') || 'DATE_DESC'
+  if (sortBy === 'DATE_DESC') {
+    query = query.order('transaction_date', { ascending: false }).order('created_at', { ascending: false })
+  } else if (sortBy === 'DATE_ASC') {
+    query = query.order('transaction_date', { ascending: true }).order('created_at', { ascending: true })
+  } else if (sortBy === 'TOTAL_DESC') {
+    query = query.order('total_price', { ascending: false })
+  } else if (sortBy === 'TOTAL_ASC') {
+    query = query.order('total_price', { ascending: true })
+  } else {
+    query = query.order('transaction_date', { ascending: false })
+  }
   const { data, error } = await query
 
   if (error || !data) {
@@ -92,7 +113,7 @@ export async function GET(request: Request) {
     if (!hiddenCols.includes('col_date')) headerParts.push('Transaction Date', 'Shift')
     if (!hiddenCols.includes('col_seller')) headerParts.push('Seller ID', 'Seller Name')
     if (!hiddenCols.includes('col_type')) headerParts.push('Milk Type')
-    if (!hiddenCols.includes('col_volume')) headerParts.push('Quantity (L)')
+    if (!hiddenCols.includes('col_volume')) headerParts.push('Quantity (L)', 'Fat %')
     if (!hiddenCols.includes('col_capital')) headerParts.push('Rate (INR)', 'Gross Price (INR)', 'Net Payable (INR)')
     if (!hiddenCols.includes('col_audit')) headerParts.push('Audit Trail')
 
@@ -104,7 +125,7 @@ export async function GET(request: Request) {
         if (!hiddenCols.includes('col_date')) rowParts.push(tx.transaction_date, tx.shift)
         if (!hiddenCols.includes('col_seller')) rowParts.push(String(tx.customers?.seller_id).padStart(3, '0'), `"${tx.customers?.name || 'Unknown'}"`)
         if (!hiddenCols.includes('col_type')) rowParts.push(tx.milk_type)
-        if (!hiddenCols.includes('col_volume')) rowParts.push(tx.quantity_litres)
+        if (!hiddenCols.includes('col_volume')) rowParts.push(tx.quantity_litres, tx.fat_percentage)
         if (!hiddenCols.includes('col_capital')) {
           const np = (Number(tx.total_price)).toFixed(2)
           rowParts.push(tx.price_per_litre, tx.total_price, np)
@@ -147,7 +168,82 @@ export async function GET(request: Request) {
   }
 
   if (format === 'json') {
-    return NextResponse.json({ data })
+    let loanInfo = null;
+    let payout = null;
+    let currentCyclePayment = null;
+
+    if (customerId && (timeframe === 'MONTH_FIRST_HALF' || timeframe === 'MONTH_SECOND_HALF')) {
+      let cycleYear = new Date().getFullYear();
+      let cycleMonth = new Date().getMonth() + 1;
+      if (exactMonth) {
+        const [yy, mm] = exactMonth.split('-');
+        cycleYear = parseInt(yy);
+        cycleMonth = parseInt(mm);
+      }
+      const cycleSuffix = timeframe === 'MONTH_SECOND_HALF' ? 'C2' : 'C1';
+      const selectedCycle = `${cycleYear}-${String(cycleMonth).padStart(2, '0')}-${cycleSuffix}`;
+
+      const payoutRes = await supabase
+        .from('payouts')
+        .select('*')
+        .eq('customer_id', customerId)
+        .eq('cycle_identifier', selectedCycle)
+        .limit(1)
+        .single();
+      payout = payoutRes.data;
+
+      const lpRes = await supabase
+        .from('loan_payments')
+        .select('loan_id, loans!inner(customer_id)')
+        .eq('loans.customer_id', customerId)
+        .eq('cycle_identifier', selectedCycle)
+        .limit(1)
+        .single();
+        
+      let targetLoanId = lpRes.data?.loan_id;
+      if (!targetLoanId) {
+        const activeLoanRes = await supabase
+          .from('v_loan_current_state')
+          .select('loan_id')
+          .eq('customer_id', customerId)
+          .eq('status', 'ACTIVE')
+          .limit(1)
+          .single();
+        targetLoanId = activeLoanRes.data?.loan_id;
+      }
+
+      if (targetLoanId) {
+        const loanRes = await supabase
+          .from('v_loan_current_state')
+          .select('*')
+          .eq('loan_id', targetLoanId)
+          .single();
+        loanInfo = loanRes.data;
+        
+        const payRes = await supabase
+          .from('loan_payments')
+          .select('*')
+          .eq('loan_id', targetLoanId)
+          .order('created_at', { ascending: false });
+        currentCyclePayment = (payRes.data || []).find((p: any) => p.cycle_identifier === selectedCycle) || null;
+
+        if (currentCyclePayment) {
+          loanInfo.historical_outstanding = Number(currentCyclePayment.principal_before);
+          loanInfo.historical_interest = Number(currentCyclePayment.forecast_interest_charged);
+        } else if (payout) {
+          loanInfo.historical_outstanding = Number(payout.carried_forward_principal) + Number(payout.loan_principal_deducted);
+          loanInfo.historical_interest = Number(payout.loan_interest_deducted) > 0 ? Number(payout.loan_interest_deducted) : (loanInfo.historical_outstanding * Number(loanInfo.current_interest_rate) / 100);
+        } else {
+          loanInfo.historical_outstanding = Number(loanInfo.outstanding_principal);
+          loanInfo.historical_interest = Number(loanInfo.forecasted_interest);
+        }
+      }
+    }
+
+    const settingsRes = await supabase.from('app_settings').select('value').eq('id', 'pdf_branding').maybeSingle();
+    const pdfSettings = settingsRes.data?.value || null;
+
+    return NextResponse.json({ data, payout, loanInfo, currentCyclePayment, pdfSettings })
   }
 
   return NextResponse.json({ error: 'Unsupported format' }, { status: 400 })

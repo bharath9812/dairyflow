@@ -13,7 +13,7 @@ export default function OperationalSpeedSettings() {
             <h3 className="font-bold text-lg text-onyx">Smart Shift Auto-Select</h3>
 
           </div>
-          <p className="text-sm text-slate-500 font-medium">Enable automatic shift selection based on time of day (Before 2PM = Morning). Reduces manual entry clicks during peak collection hours.</p>
+          <p className="text-sm text-slate-500 font-medium">Enable automatic shift selection based on time of day (Before 2PM = AM). Reduces manual entry clicks during peak collection hours.</p>
         </div>
         <label className="relative inline-flex items-center cursor-pointer shrink-0 mt-1 sm:mt-0">
           <input type="checkbox" defaultChecked className="sr-only peer" />

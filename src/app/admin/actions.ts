@@ -3,7 +3,7 @@
 
 import { createClient } from '@/utils/supabase/server'
 
-export async function fetchAdminTransactions(filters: { timeframe: string, shift: string, milkType?: string, minQty?: string, qtyOp?: string, search?: string, exactDate?: string, exactMonth?: string, startDate?: string, endDate?: string, customerId?: string, limit: number, offset: number }) {
+export async function fetchAdminTransactions(filters: { timeframe: string, shift: string, milkType?: string, minQty?: string, qtyOp?: string, search?: string, exactDate?: string, exactMonth?: string, startDate?: string, endDate?: string, customerId?: string, limit: number, offset: number, sortBy?: string }) {
   const supabase = await createClient()
 
   let query = supabase
@@ -60,10 +60,21 @@ export async function fetchAdminTransactions(filters: { timeframe: string, shift
     const endStr = `${yy}-${exMm}-${String(lastDay).padStart(2, '0')}`
     query = query.gte('transaction_date', startStr).lte('transaction_date', endStr)
   } else if (filters.timeframe === 'MONTH_FIRST_HALF') {
-    query = query.gte('transaction_date', `${year}-${mm}-01`).lte('transaction_date', `${year}-${mm}-15`)
+    if (filters.exactMonth) {
+      const [yy, exMm] = filters.exactMonth.split('-')
+      query = query.gte('transaction_date', `${yy}-${exMm}-01`).lte('transaction_date', `${yy}-${exMm}-15`)
+    } else {
+      query = query.gte('transaction_date', `${year}-${mm}-01`).lte('transaction_date', `${year}-${mm}-15`)
+    }
   } else if (filters.timeframe === 'MONTH_SECOND_HALF') {
-    const lastDay = new Date(year, month + 1, 0).getDate()
-    query = query.gte('transaction_date', `${year}-${mm}-16`).lte('transaction_date', `${year}-${mm}-${String(lastDay).padStart(2, '0')}`)
+    if (filters.exactMonth) {
+      const [yy, exMm] = filters.exactMonth.split('-')
+      const lastDay = new Date(Number(yy), Number(exMm), 0).getDate()
+      query = query.gte('transaction_date', `${yy}-${exMm}-16`).lte('transaction_date', `${yy}-${exMm}-${String(lastDay).padStart(2, '0')}`)
+    } else {
+      const lastDay = new Date(year, month + 1, 0).getDate()
+      query = query.gte('transaction_date', `${year}-${mm}-16`).lte('transaction_date', `${year}-${mm}-${String(lastDay).padStart(2, '0')}`)
+    }
   } else if (filters.timeframe === 'MONTHLY') {
     const lastDay = new Date(year, month + 1, 0).getDate()
     query = query.gte('transaction_date', `${year}-${mm}-01`).lte('transaction_date', `${year}-${mm}-${String(lastDay).padStart(2, '0')}`)
@@ -74,7 +85,16 @@ export async function fetchAdminTransactions(filters: { timeframe: string, shift
   }
 
   // Sorting constraint
-  query = query.order('transaction_date', { ascending: false }).order('created_at', { ascending: false })
+  const sortBy = filters.sortBy || 'DATE_DESC'
+  if (sortBy === 'DATE_DESC') {
+    query = query.order('transaction_date', { ascending: false }).order('created_at', { ascending: false })
+  } else if (sortBy === 'DATE_ASC') {
+    query = query.order('transaction_date', { ascending: true }).order('created_at', { ascending: true })
+  } else if (sortBy === 'TOTAL_DESC') {
+    query = query.order('total_price', { ascending: false })
+  } else if (sortBy === 'TOTAL_ASC') {
+    query = query.order('total_price', { ascending: true })
+  }
 
   // Standard Pagination bounds
   query = query.range(filters.offset, filters.offset + filters.limit - 1)
@@ -141,10 +161,21 @@ export async function fetchAdminAggregates(filters: { timeframe: string, shift: 
     const endStr = `${yy}-${exMm}-${String(lastDay).padStart(2, '0')}`
     query = query.gte('transaction_date', startStr).lte('transaction_date', endStr)
   } else if (filters.timeframe === 'MONTH_FIRST_HALF') {
-    query = query.gte('transaction_date', `${year}-${mm}-01`).lte('transaction_date', `${year}-${mm}-15`)
+    if (filters.exactMonth) {
+      const [yy, exMm] = filters.exactMonth.split('-')
+      query = query.gte('transaction_date', `${yy}-${exMm}-01`).lte('transaction_date', `${yy}-${exMm}-15`)
+    } else {
+      query = query.gte('transaction_date', `${year}-${mm}-01`).lte('transaction_date', `${year}-${mm}-15`)
+    }
   } else if (filters.timeframe === 'MONTH_SECOND_HALF') {
-    const lastDay = new Date(year, month + 1, 0).getDate()
-    query = query.gte('transaction_date', `${year}-${mm}-16`).lte('transaction_date', `${year}-${mm}-${String(lastDay).padStart(2, '0')}`)
+    if (filters.exactMonth) {
+      const [yy, exMm] = filters.exactMonth.split('-')
+      const lastDay = new Date(Number(yy), Number(exMm), 0).getDate()
+      query = query.gte('transaction_date', `${yy}-${exMm}-16`).lte('transaction_date', `${yy}-${exMm}-${String(lastDay).padStart(2, '0')}`)
+    } else {
+      const lastDay = new Date(year, month + 1, 0).getDate()
+      query = query.gte('transaction_date', `${year}-${mm}-16`).lte('transaction_date', `${year}-${mm}-${String(lastDay).padStart(2, '0')}`)
+    }
   } else if (filters.timeframe === 'MONTHLY') {
     const lastDay = new Date(year, month + 1, 0).getDate()
     query = query.gte('transaction_date', `${year}-${mm}-01`).lte('transaction_date', `${year}-${mm}-${String(lastDay).padStart(2, '0')}`)
@@ -159,16 +190,16 @@ export async function fetchAdminAggregates(filters: { timeframe: string, shift: 
 
   if (error) {
     console.error("Aggregation Frame Error:", error.message)
-    return { total_bought: 0, morning_bought: 0, evening_bought: 0, total_spent: 0, morning_spent: 0, evening_spent: 0, total_net_payable: 0, total_deducted: 0 }
+    return { total_bought: 0, am_bought: 0, pm_bought: 0, total_spent: 0, am_spent: 0, pm_spent: 0, total_net_payable: 0, total_deducted: 0 }
   }
 
   let totals = {
     total_bought: 0,
-    morning_bought: 0,
-    evening_bought: 0,
+    am_bought: 0,
+    pm_bought: 0,
     total_spent: 0,
-    morning_spent: 0,
-    evening_spent: 0,
+    am_spent: 0,
+    pm_spent: 0,
     total_net_payable: 0
   }
 
@@ -182,12 +213,12 @@ export async function fetchAdminAggregates(filters: { timeframe: string, shift: 
     totals.total_spent += price
     totals.total_net_payable += price
 
-    if (tx.shift === 'Morning') {
-      totals.morning_bought += lit
-      totals.morning_spent += price
-    } else if (tx.shift === 'Evening') {
-      totals.evening_bought += lit
-      totals.evening_spent += price
+    if (tx.shift === 'AM') {
+      totals.am_bought += lit
+      totals.am_spent += price
+    } else if (tx.shift === 'PM') {
+      totals.pm_bought += lit
+      totals.pm_spent += price
     }
   })
 

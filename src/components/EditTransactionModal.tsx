@@ -10,7 +10,7 @@ export default function EditTransactionModal({ transaction, onClose, onSuccess }
   const [supabase] = useState(() => createClient())
   const [date, setDate] = useState(transaction?.transaction_date || '')
   const [milkType, setMilkType] = useState(transaction?.milk_type || 'Cow')
-  const [shift, setShift] = useState(transaction?.shift || 'Morning')
+  const [shift, setShift] = useState(transaction?.shift || 'AM')
   const [quantity, setQuantity] = useState<number | ''>(transaction?.quantity_litres || '')
   const [fatPercentage, setFatPercentage] = useState<number | ''>(transaction?.fat_percentage || '')
   const [price, setPrice] = useState<number | ''>(transaction?.price_per_litre || '')
@@ -102,8 +102,8 @@ export default function EditTransactionModal({ transaction, onClose, onSuccess }
               <div className="space-y-1.5">
                 <label className="text-xs font-bold text-slate-600 uppercase">Shift</label>
                 <div className="flex bg-slate-100 p-1 rounded-xl">
-                  <button type="button" onClick={() => setShift('Morning')} className={`flex-1 text-xs font-bold py-2 rounded-lg transition-all ${shift === 'Morning' ? 'bg-onyx text-white shadow-md' : 'text-slate-500 hover:text-slate-800'}`}>Morning</button>
-                  <button type="button" onClick={() => setShift('Evening')} className={`flex-1 text-xs font-bold py-2 rounded-lg transition-all ${shift === 'Evening' ? 'bg-onyx text-white shadow-md' : 'text-slate-500 hover:text-slate-800'}`}>Evening</button>
+                  <button type="button" onClick={() => setShift('AM')} className={`flex-1 text-xs font-bold py-2 rounded-lg transition-all ${shift === 'AM' ? 'bg-onyx text-white shadow-md' : 'text-slate-500 hover:text-slate-800'}`}>AM</button>
+                  <button type="button" onClick={() => setShift('PM')} className={`flex-1 text-xs font-bold py-2 rounded-lg transition-all ${shift === 'PM' ? 'bg-onyx text-white shadow-md' : 'text-slate-500 hover:text-slate-800'}`}>PM</button>
                 </div>
               </div>
             </div>

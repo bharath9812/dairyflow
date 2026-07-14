@@ -3,7 +3,7 @@
 import React, { useState } from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { LogOut, UserCircle, ChevronLeft, ChevronRight, Droplets, Settings, PlusCircle, BarChart3, Activity, Landmark, Receipt } from 'lucide-react';
+import { LogOut, UserCircle, ChevronLeft, ChevronRight, Droplets, Settings, PlusCircle, BarChart3, Activity, Landmark, Receipt, Users } from 'lucide-react';
 import { useSidebar } from '@/components/SidebarContext';
 
 export type SidebarLink = {
@@ -22,6 +22,8 @@ interface SidebarProps {
 
 const DEFAULT_LINKS: SidebarLink[] = [
   { label: 'Daily Milk Entry', href: '/', icon: <PlusCircle className="w-5 h-5" /> },
+  { label: 'Customers', href: '/customers', icon: <Users className="w-5 h-5" /> },
+  { label: 'Register Customer', href: '/customers/new', icon: <UserCircle className="w-5 h-5" /> },
   { label: 'Reports', href: '/admin', icon: <BarChart3 className="w-5 h-5" /> },
   { label: 'Live Tracker', href: '/live', icon: <Activity className="w-5 h-5" /> },
   { label: 'Loans', href: '/loan', icon: <Landmark className="w-5 h-5" /> },
@@ -91,7 +93,7 @@ export default function Sidebar({
       </nav>
 
       {/* Footer Actions */}
-      <div className="p-4 flex flex-col gap-2 border-t border-slate-100">
+      <div className="p-4 flex flex-col gap-2 border-t border-slate-200">
         <Link
           href="/admin/settings"
           className={`flex items-center gap-3 px-3 py-3 rounded-xl text-slate-600 hover:bg-white hover:shadow-sm hover:text-onyx border border-transparent hover:border-slate-200 transition-all group

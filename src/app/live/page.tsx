@@ -101,148 +101,150 @@ export default function LiveTrackerPage() {
         dateString={new Date().toLocaleDateString('en-GB', { weekday: 'long', year: 'numeric', month: 'short', day: 'numeric' })}
       />
 
-      <main className="flex-1 flex flex-col w-full p-4 md:p-6 lg:p-8 overflow-hidden relative">
-        <Wrapper
-          statsBar={
-            <div className="flex flex-col sm:flex-row gap-4 w-full xl:w-auto">
-              <div className="bg-gradient-to-br from-white/80 to-blue-50/50 backdrop-blur-2xl border border-white/40 rounded-xl p-4 flex flex-col justify-between shadow-sm relative overflow-hidden">
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-1.5 text-xs font-bold text-blue-700 tracking-wider uppercase">
-                    <Activity className="w-4 h-4" /> CURRENT CYCLE
+      <main className="flex-1 flex flex-col bg-surface overflow-hidden relative">
+        <div className="w-full max-w-[1440px] mx-auto p-4 md:p-8 lg:p-10 flex-1 flex flex-col min-h-0">
+          <Wrapper
+            statsBar={
+              <div className="flex flex-col sm:flex-row gap-4 w-full xl:w-auto">
+                <div className="bg-white border border-slate-200 rounded-xl p-4 flex flex-col justify-between shadow-[0px_4px_20px_rgba(0,0,0,0.03)] relative overflow-hidden">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-1.5 text-xs font-semibold text-blue-600 tracking-wider uppercase">
+                      <Activity className="w-4 h-4" /> CURRENT CYCLE
+                    </div>
+                  </div>
+                  <div className="mt-2 text-lg font-semibold text-onyx leading-tight">
+                    {currentCycle ? getCycleLabel(currentCycle, cycleConfig) : 'Loading...'}
                   </div>
                 </div>
-                <div className="mt-2 text-lg font-bold text-onyx leading-tight">
-                  {currentCycle ? getCycleLabel(currentCycle, cycleConfig) : 'Loading...'}
-                </div>
-              </div>
 
-              <div className="bg-gradient-to-br from-white/80 to-emerald-50/50 backdrop-blur-2xl border border-white/40 rounded-xl p-4 flex flex-col justify-between shadow-sm relative overflow-hidden min-w-[200px]">
-                <div className="flex items-center gap-1.5 text-xs font-bold text-emerald-700 tracking-wider uppercase">
-                  <Banknote className="w-4 h-4" /> TOTAL CYCLE EARNINGS
+                <div className="bg-white border border-slate-200 rounded-xl p-4 flex flex-col justify-between shadow-[0px_4px_20px_rgba(0,0,0,0.03)] relative overflow-hidden min-w-[200px]">
+                  <div className="flex items-center gap-1.5 text-xs font-semibold text-emerald-600 tracking-wider uppercase">
+                    <Banknote className="w-4 h-4" /> TOTAL CYCLE EARNINGS
+                  </div>
+                  <div className="mt-2 text-2xl font-semibold text-onyx font-mono">
+                    ₹{totalEarnings.toFixed(2)}
+                  </div>
                 </div>
-                <div className="mt-2 text-2xl font-bold text-onyx font-mono">
-                  ₹{totalEarnings.toFixed(2)}
-                </div>
-              </div>
 
-              <div className="bg-gradient-to-br from-white/80 to-sky-50/50 backdrop-blur-2xl border border-white/40 rounded-xl p-4 flex flex-col justify-between shadow-sm relative overflow-hidden min-w-[200px]">
-                <div className="flex items-center gap-1.5 text-xs font-bold text-sky-700 tracking-wider uppercase">
-                  <Droplets className="w-4 h-4" /> TOTAL VOLUME
-                </div>
-                <div className="flex flex-col mt-1">
-                  <div className="flex items-baseline gap-1">
-                    <span className="text-2xl font-bold text-onyx">{totalLitres.toFixed(1)}</span>
-                    <span className="text-sm font-bold text-slate-500">L</span>
+                <div className="bg-white border border-slate-200 rounded-xl p-4 flex flex-col justify-between shadow-[0px_4px_20px_rgba(0,0,0,0.03)] relative overflow-hidden min-w-[200px]">
+                  <div className="flex items-center gap-1.5 text-xs font-semibold text-blue-600 tracking-wider uppercase">
+                    <Droplets className="w-4 h-4" /> TOTAL VOLUME
                   </div>
-                  <div className="flex items-center gap-3 mt-1 text-xs font-medium text-slate-500">
-                    <span className="flex items-center gap-1">
-                      <div className="w-2 h-2 rounded-full bg-amber-400" /> Cow: {totalCow.toFixed(1)}L
-                    </span>
-                    <span className="flex items-center gap-1">
-                      <div className="w-2 h-2 rounded-full bg-slate-800" /> Buffalo: {totalBuffalo.toFixed(1)}L
-                    </span>
+                  <div className="flex flex-col mt-1">
+                    <div className="flex items-baseline gap-1">
+                      <span className="text-2xl font-semibold text-onyx">{totalLitres.toFixed(1)}</span>
+                      <span className="text-sm font-semibold text-slate-500">L</span>
+                    </div>
+                    <div className="flex items-center gap-3 mt-1 text-xs font-medium text-slate-500">
+                      <span className="flex items-center gap-1">
+                        <div className="w-2 h-2 rounded-full bg-amber-400" /> Cow: {totalCow.toFixed(1)}L
+                      </span>
+                      <span className="flex items-center gap-1">
+                        <div className="w-2 h-2 rounded-full bg-slate-800" /> Buffalo: {totalBuffalo.toFixed(1)}L
+                      </span>
+                    </div>
                   </div>
                 </div>
               </div>
-            </div>
-          }
-          headerLeft={
-            <div className="flex items-center gap-4 w-full">
-              <div className="p-2 bg-blue-100 text-blue-700 rounded-lg shrink-0">
-                <Activity className="w-5 h-5 animate-pulse" />
+            }
+            headerLeft={
+              <div className="flex items-center gap-4 w-full">
+                <div className="p-2 bg-blue-50 text-blue-600 rounded-lg shrink-0">
+                  <Activity className="w-5 h-5 animate-pulse" />
+                </div>
+                <div className="shrink-0 hidden md:block">
+                  <h2 className="text-lg font-semibold text-onyx leading-tight">Live Board</h2>
+                  <p className="text-sm font-medium text-slate-500">Real-time tracking of C1/C2 cycle data</p>
+                </div>
+                <div className="ml-auto flex items-center bg-surface border border-slate-200 rounded-lg px-3 py-2 w-full max-w-sm focus-within:border-onyx transition-colors">
+                  <Search className="w-4 h-4 text-slate-400 mr-2 shrink-0" />
+                  <input
+                    type="text"
+                    placeholder="Search sellers by name or ID..."
+                    value={searchTerm}
+                    onChange={(e) => setSearchTerm(e.target.value)}
+                    className="bg-transparent border-none outline-none text-sm text-onyx font-medium w-full placeholder:text-slate-400"
+                  />
+                </div>
               </div>
-              <div className="shrink-0 hidden md:block">
-                <h2 className="text-lg font-bold text-onyx leading-tight">Live Board</h2>
-                <p className="text-sm font-medium text-slate-500">Real-time tracking of C1/C2 cycle data</p>
-              </div>
-              <div className="ml-auto flex items-center bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 w-full max-w-sm focus-within:ring-2 ring-indigo-500/20 transition-all">
-                <Search className="w-4 h-4 text-slate-400 mr-2 shrink-0" />
-                <input
-                  type="text"
-                  placeholder="Search sellers by name or ID..."
-                  value={searchTerm}
-                  onChange={(e) => setSearchTerm(e.target.value)}
-                  className="bg-transparent border-none outline-none text-sm text-onyx font-semibold w-full placeholder:text-slate-400 placeholder:font-medium"
-                />
-              </div>
-            </div>
-          }
-        >
-          <div className="relative flex-1 flex flex-col min-h-0 overflow-hidden">
-            <div className="flex-1 min-h-0 overflow-y-auto overflow-x-auto custom-scrollbar">
-              <table className="w-full text-left border-collapse min-w-[800px]">
-                <thead className="sticky top-0 z-10 bg-white/95 backdrop-blur-sm border-b border-slate-200 text-slate-500 font-semibold uppercase text-xs tracking-wider">
-                  <tr>
-                    <th className="px-6 py-4 border-b border-slate-200">Rank</th>
-                    <th className="px-6 py-4 border-b border-slate-200">Seller Entity</th>
-                    <th className="px-6 py-4 border-b border-slate-200 text-right">Cycle Earnings</th>
-                    <th className="px-6 py-4 border-b border-slate-200 text-right">Total Vol</th>
-                    <th className="px-6 py-4 border-b border-slate-200 text-right">Shifts (M/E)</th>
-                    <th className="px-6 py-4 border-b border-slate-200 text-right">Last Sync</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-slate-100 bg-white">
-                  {isLoading ? (
+            }
+          >
+            <div className="relative flex-1 flex flex-col min-h-0 overflow-hidden bg-white">
+              <div className="flex-1 min-h-0 overflow-y-auto overflow-x-auto custom-scrollbar">
+                <table className="w-full text-left border-collapse min-w-[800px]">
+                  <thead className="sticky top-0 z-10 bg-white border-b border-slate-100 text-slate-500 font-bold text-[11px] uppercase tracking-wider">
                     <tr>
-                      <td colSpan={6} className="px-6 py-12 text-center text-slate-400">
-                        Loading live aggregates...
-                      </td>
+                      <th className="px-6 py-4 border-b border-slate-100">Rank</th>
+                      <th className="px-6 py-4 border-b border-slate-100">Seller Entity</th>
+                      <th className="px-6 py-4 border-b border-slate-100 text-right">Cycle Earnings</th>
+                      <th className="px-6 py-4 border-b border-slate-100 text-right">Total Vol</th>
+                      <th className="px-6 py-4 border-b border-slate-100 text-right">Shifts (M/E)</th>
+                      <th className="px-6 py-4 border-b border-slate-100 text-right">Last Sync</th>
                     </tr>
-                  ) : filteredAggregates.length === 0 ? (
-                    <tr>
-                      <td colSpan={6} className="px-6 py-12 text-center text-slate-400">
-                        No transactions recorded for this cycle yet.
-                      </td>
-                    </tr>
-                  ) : (
-                    filteredAggregates.map((row, index) => (
-                      <tr key={row.id} className="hover:bg-slate-50/80 transition-colors group">
-                        <td className="px-6 py-4 whitespace-nowrap text-sm font-bold text-slate-400">
-                          #{index + 1}
-                        </td>
-                        <td className="px-6 py-4 whitespace-nowrap">
-                          <Link href={`/customers/${row.customer_id}`} className="flex items-center gap-3 group/link">
-                            <div className="w-8 h-8 rounded-full bg-slate-100 border border-slate-200 flex items-center justify-center text-xs font-bold text-slate-600">
-                              {row.customers?.seller_id}
-                            </div>
-                            <span className="font-semibold text-onyx group-hover/link:text-blue-600 transition-colors">
-                              {row.customers?.name || `Seller ${String(row.customers?.seller_id || '').padStart(3, '0')}`}
-                            </span>
-                          </Link>
-                        </td>
-                        <td className="px-6 py-4 whitespace-nowrap text-right">
-                          <span className="font-mono font-bold text-emerald-600 text-base bg-emerald-50 px-3 py-1 rounded-full border border-emerald-100">
-                            ₹{(Number(row.total_earnings) || 0).toFixed(2)}
-                          </span>
-                        </td>
-                        <td className="px-6 py-4 whitespace-nowrap text-right">
-                          <div className="font-bold text-onyx">{(Number(row.total_litres) || 0).toFixed(1)} L</div>
-                          <div className="text-xs font-medium text-slate-400 flex justify-end gap-2 mt-0.5">
-                            <span className="flex items-center gap-0.5"><div className="w-1.5 h-1.5 rounded-full bg-amber-400" /> {Number(row.total_cow_litres || 0).toFixed(1)}</span>
-                            <span className="flex items-center gap-0.5"><div className="w-1.5 h-1.5 rounded-full bg-slate-800" /> {Number(row.total_buffalo_litres || 0).toFixed(1)}</span>
-                          </div>
-                        </td>
-                        <td className="px-6 py-4 whitespace-nowrap text-right">
-                          <div className="flex items-center justify-end gap-2">
-                            <span className="flex items-center gap-1 text-sm font-medium text-orange-500 bg-orange-50 px-2 py-0.5 rounded-md border border-orange-100">
-                              <Sun className="w-3 h-3" /> {row.morning_shifts_count || 0}
-                            </span>
-                            <span className="flex items-center gap-1 text-sm font-medium text-purple-600 bg-purple-50 px-2 py-0.5 rounded-md border border-purple-100">
-                              <Moon className="w-3 h-3" /> {row.evening_shifts_count || 0}
-                            </span>
-                          </div>
-                        </td>
-                        <td className="px-6 py-4 whitespace-nowrap text-right text-sm text-slate-500 font-medium">
-                          {row.last_transaction_date ? new Date(row.last_transaction_date).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' }) : '-'}
+                  </thead>
+                  <tbody className="divide-y divide-slate-50 bg-white">
+                    {isLoading ? (
+                      <tr>
+                        <td colSpan={6} className="px-6 py-12 text-center text-slate-400">
+                          Loading live aggregates...
                         </td>
                       </tr>
-                    ))
-                  )}
-                </tbody>
-              </table>
+                    ) : filteredAggregates.length === 0 ? (
+                      <tr>
+                        <td colSpan={6} className="px-6 py-12 text-center text-slate-400">
+                          No transactions recorded for this cycle yet.
+                        </td>
+                      </tr>
+                    ) : (
+                      filteredAggregates.map((row, index) => (
+                        <tr key={row.id} className="hover:bg-slate-50 transition-colors group">
+                          <td className="px-6 py-4 whitespace-nowrap text-sm font-semibold text-blue-400">
+                            #{index + 1}
+                          </td>
+                          <td className="px-6 py-4 whitespace-nowrap">
+                            <Link href={`/customers/${row.customer_id}`} className="flex items-center gap-3 group/link">
+                              <div className="w-8 h-8 rounded-full bg-surface border border-slate-100 flex items-center justify-center text-xs font-medium text-slate-600">
+                                {row.customers?.seller_id}
+                              </div>
+                              <span className="font-medium text-onyx group-hover/link:text-slate-600 transition-colors">
+                                {row.customers?.name || `Seller ${String(row.customers?.seller_id || '').padStart(3, '0')}`}
+                              </span>
+                            </Link>
+                          </td>
+                          <td className="px-6 py-4 whitespace-nowrap text-right">
+                            <span className="font-mono font-bold text-emerald-600 text-sm bg-emerald-50 px-3 py-1 rounded-full border border-emerald-100">
+                              ₹{(Number(row.total_earnings) || 0).toFixed(2)}
+                            </span>
+                          </td>
+                          <td className="px-6 py-4 whitespace-nowrap text-right">
+                            <div className="font-medium text-onyx">{(Number(row.total_litres) || 0).toFixed(1)} L</div>
+                            <div className="text-xs font-medium text-slate-400 flex justify-end gap-2 mt-0.5">
+                              <span className="flex items-center gap-0.5"><div className="w-1.5 h-1.5 rounded-full bg-amber-400" /> {Number(row.total_cow_litres || 0).toFixed(1)}</span>
+                              <span className="flex items-center gap-0.5"><div className="w-1.5 h-1.5 rounded-full bg-slate-800" /> {Number(row.total_buffalo_litres || 0).toFixed(1)}</span>
+                            </div>
+                          </td>
+                          <td className="px-6 py-4 whitespace-nowrap text-right">
+                            <div className="flex items-center justify-end gap-2">
+                              <div className="flex items-center gap-1.5 min-w-[32px] justify-center text-xs font-bold bg-orange-50 text-orange-600 px-2 py-1 rounded-md border border-orange-100">
+                                <Sun className="w-3 h-3 text-orange-500" /> {row.am_shifts_count || 0}
+                              </div>
+                              <div className="flex items-center gap-1.5 min-w-[32px] justify-center text-xs font-bold bg-purple-50 text-purple-600 px-2 py-1 rounded-md border border-purple-100">
+                                <Moon className="w-3 h-3 text-purple-500" /> {row.pm_shifts_count || 0}
+                              </div>
+                            </div>
+                          </td>
+                          <td className="px-6 py-4 whitespace-nowrap text-right text-sm text-slate-500 font-medium">
+                            {row.last_transaction_date ? new Date(row.last_transaction_date).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' }) : '-'}
+                          </td>
+                        </tr>
+                      ))
+                    )}
+                  </tbody>
+                </table>
+              </div>
             </div>
-          </div>
-        </Wrapper>
+          </Wrapper>
+        </div>
       </main>
     </div>
   )

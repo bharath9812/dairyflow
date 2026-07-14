@@ -17,7 +17,7 @@ export default function TransactionDashboard() {
   const { mode, toggleMode } = useTransactionViewMode()
   const [date, setDate] = useState(() => new Date().toISOString().split('T')[0])
   const [milkType, setMilkType] = useState('Buffalo')
-  const [shift, setShift] = useState('Morning')
+  const [shift, setShift] = useState('AM')
   const [quantity, setQuantity] = useState<number | ''>('')
   const [fatPercentage, setFatPercentage] = useState<number | ''>('')
   const [globalPricing, setGlobalPricing] = useState({ cow_price: 40, buffalo_price: 50 })
@@ -248,8 +248,8 @@ export default function TransactionDashboard() {
                               onChange={(e) => setShift(e.target.value)}
                               className="w-full input-recessed focus:input-recessed-focus appearance-none cursor-pointer pr-8"
                             >
-                              <option value="Morning">Morning</option>
-                              <option value="Evening">Evening</option>
+                              <option value="AM">AM</option>
+                              <option value="PM">PM</option>
                             </select>
                             <ChevronDown className="w-4 h-4 text-slate-400 absolute right-2 pointer-events-none" />
                           </div>
@@ -405,9 +405,12 @@ export default function TransactionDashboard() {
                             </div>
                           </div>
 
-                          <div className="flex flex-col items-end gap-1">
+                          <div className="flex flex-col items-end pt-1 gap-1">
                             <div className="font-mono font-bold text-[15px] text-onyx">
                               ₹{Number(tx.net_payable ?? tx.total_price).toFixed(2)}
+                            </div>
+                            <div className="text-[10px] text-slate-400 font-medium font-mono">
+                              @ ₹{Number(tx.price_per_litre).toFixed(2)}/L
                             </div>
                           </div>
 

@@ -2,8 +2,8 @@
 /* eslint-disable react-hooks/set-state-in-effect */
 
 import { useRouter, useSearchParams, usePathname } from 'next/navigation'
-import { Filter, Calendar, Sun, Moon, Activity, Search, Droplet, Hash, Eye, EyeOff, LayoutTemplate } from 'lucide-react'
-import { useState, useEffect, useTransition, useCallback } from 'react'
+import { Filter, Calendar, Sun, Moon, Activity, Search, Droplet, Hash, Eye, EyeOff, LayoutTemplate, ArrowDownUp } from 'lucide-react'
+import { useState, useEffect, useTransition, useCallback, useRef } from 'react'
 
 export default function AdminFilters({ currentYear, isCustomerScope, exportButtons }: { currentYear?: number, isCustomerScope?: boolean, exportButtons?: React.ReactNode }) {
   const displayYear = currentYear || new Date().getFullYear()
@@ -29,7 +29,7 @@ export default function AdminFilters({ currentYear, isCustomerScope, exportButto
     localStorage.setItem('dairyflow_admin_filters_expanded', String(next))
   }
 
-  const [timeframe, setTimeframe] = useState(searchParams.get('timeframe') || 'TODAY')
+  const [timeframe, setTimeframe] = useState(searchParams.get('timeframe') || (isCustomerScope ? 'MONTH_FIRST_HALF' : 'TODAY'))
   const [exactDate, setExactDate] = useState(searchParams.get('exactDate') || '')
   const [exactMonth, setExactMonth] = useState(searchParams.get('exactMonth') || '')
   const [startDate, setStartDate] = useState(searchParams.get('startDate') || '')
@@ -41,10 +41,21 @@ export default function AdminFilters({ currentYear, isCustomerScope, exportButto
   const [search, setSearch] = useState(searchParams.get('search') || '')
   const [hideTable, setHideTable] = useState(searchParams.get('hideTable') === 'true')
   const [hiddenCols, setHiddenCols] = useState<string[]>(searchParams.get('hiddenCols') ? (searchParams.get('hiddenCols') as string).split(',') : [])
+  const [sortBy, setSortBy] = useState(searchParams.get('sortBy') || 'DATE_DESC')
+
+  const isMounted = useRef(false)
 
   // Sync state if search params change externally (back button etc)
   useEffect(() => {
-    setTimeframe(searchParams.get('timeframe') || 'TODAY')
+    if (!isMounted.current && !searchParams.has('timeframe') && !searchParams.has('shift') && !searchParams.has('hiddenCols')) {
+      const saved = localStorage.getItem('dairyflow_admin_filters')
+      if (saved) {
+        router.replace(`${pathname}?${saved}`)
+        return
+      }
+    }
+
+    setTimeframe(searchParams.get('timeframe') || (isCustomerScope ? 'MONTH_FIRST_HALF' : 'TODAY'))
     setExactDate(searchParams.get('exactDate') || '')
     setExactMonth(searchParams.get('exactMonth') || '')
     setStartDate(searchParams.get('startDate') || '')
@@ -54,7 +65,11 @@ export default function AdminFilters({ currentYear, isCustomerScope, exportButto
     setMinQty(searchParams.get('minQty') || '')
     setQtyOp(searchParams.get('qtyOp') || 'gt')
     setSearch(searchParams.get('search') || '')
-  }, [searchParams])
+    setSortBy(searchParams.get('sortBy') || localStorage.getItem('dairyflow_admin_sort_by') || 'DATE_DESC')
+    
+    // Mark as mounted after first sync
+    setTimeout(() => { isMounted.current = true }, 50)
+  }, [searchParams, pathname, router])
 
   const triggerUpdate = useCallback(() => {
     const params = new URLSearchParams()
@@ -72,13 +87,17 @@ export default function AdminFilters({ currentYear, isCustomerScope, exportButto
     if (search) params.set('search', search)
     if (hideTable) params.set('hideTable', 'true')
     if (hiddenCols.length > 0) params.set('hiddenCols', hiddenCols.join(','))
+    if (sortBy !== 'DATE_DESC') params.set('sortBy', sortBy)
     
     params.set('page', '1') // Reset page on filter change
     
+    const qs = params.toString()
+    localStorage.setItem('dairyflow_admin_filters', qs)
+    
     startTransition(() => {
-      router.push(`${pathname}?${params.toString()}`, { scroll: false })
+      router.push(`${pathname}?${qs}`, { scroll: false })
     })
-  }, [timeframe, exactDate, exactMonth, startDate, endDate, shift, milkType, minQty, qtyOp, search, hideTable, hiddenCols, pathname, router])
+  }, [timeframe, exactDate, exactMonth, startDate, endDate, shift, milkType, minQty, qtyOp, search, hideTable, hiddenCols, sortBy, pathname, router])
 
   // Debounced search trigger
   useEffect(() => {
@@ -105,10 +124,15 @@ export default function AdminFilters({ currentYear, isCustomerScope, exportButto
     }
   }, [hiddenCols])
 
+  useEffect(() => {
+    localStorage.setItem('dairyflow_admin_sort_by', sortBy)
+  }, [sortBy])
+
   // Trigger whenever a dropdown changes
   useEffect(() => {
+    if (!isMounted.current) return
     triggerUpdate()
-  }, [timeframe, exactDate, exactMonth, startDate, endDate, shift, milkType, minQty, qtyOp, hideTable, hiddenCols, triggerUpdate])
+  }, [timeframe, exactDate, exactMonth, startDate, endDate, shift, milkType, minQty, qtyOp, hideTable, hiddenCols, sortBy, triggerUpdate])
 
   const toggleCol = (colKey: string) => {
     setHiddenCols(prev => prev.includes(colKey) ? prev.filter(c => c !== colKey) : [...prev, colKey])
@@ -148,7 +172,7 @@ export default function AdminFilters({ currentYear, isCustomerScope, exportButto
                 onChange={(e) => {
                   setTimeframe(e.target.value)
                   if (e.target.value !== 'SPECIFIC_DATE') setExactDate('')
-                  if (e.target.value !== 'SPECIFIC_MONTH') setExactMonth('')
+                  if (!['SPECIFIC_MONTH', 'MONTH_FIRST_HALF', 'MONTH_SECOND_HALF'].includes(e.target.value)) setExactMonth('')
                   if (e.target.value !== 'CUSTOM_RANGE') {
                     setStartDate('')
                     setEndDate('')
@@ -156,14 +180,14 @@ export default function AdminFilters({ currentYear, isCustomerScope, exportButto
                 }}
                 className="w-full appearance-none bg-transparent text-sm font-medium text-onyx focus:outline-none cursor-pointer"
               >
-                <option value="TODAY">Today&apos;s Tx</option>
-                <option value="SPECIFIC_DATE">Specific Date...</option>
-                <option value="SPECIFIC_MONTH">Specific Month...</option>
-                <option value="CUSTOM_RANGE">Custom Range...</option>
+                {!isCustomerScope && <option value="TODAY">Today&apos;s Tx</option>}
+                {!isCustomerScope && <option value="SPECIFIC_DATE">Specific Date...</option>}
+                {!isCustomerScope && <option value="SPECIFIC_MONTH">Specific Month...</option>}
+                {!isCustomerScope && <option value="CUSTOM_RANGE">Custom Range...</option>}
                 <option value="MONTH_FIRST_HALF">1st-15th</option>
                 <option value="MONTH_SECOND_HALF">16th-End</option>
-                <option value="MONTHLY">Current Month</option>
-                <option value="ALL_TIME">All-Time</option>
+                {!isCustomerScope && <option value="MONTHLY">Current Month</option>}
+                {!isCustomerScope && <option value="ALL_TIME">All-Time</option>}
               </select>
               <div className="pointer-events-none text-slate-400 text-xs">▼</div>
             </div>
@@ -180,7 +204,7 @@ export default function AdminFilters({ currentYear, isCustomerScope, exportButto
               </div>
             )}
 
-            {timeframe === 'SPECIFIC_MONTH' && (
+            {['SPECIFIC_MONTH', 'MONTH_FIRST_HALF', 'MONTH_SECOND_HALF'].includes(timeframe) && (
               <div className="relative input-recessed focus-within:input-recessed-focus flex items-center gap-2 flex-[1_1_160px] animate-in fade-in zoom-in-95 duration-200">
                 <Calendar className="w-4 h-4 text-slate-400" />
                 <select 
@@ -230,8 +254,24 @@ export default function AdminFilters({ currentYear, isCustomerScope, exportButto
                 className="w-full appearance-none bg-transparent text-sm font-medium text-onyx focus:outline-none cursor-pointer"
               >
                 <option value="ALL">All Shifts</option>
-                <option value="Morning">Morning</option>
-                <option value="Evening">Evening</option>
+                <option value="AM">AM</option>
+                <option value="PM">PM</option>
+              </select>
+              <div className="pointer-events-none text-slate-400 text-xs">▼</div>
+            </div>
+
+            {/* Sort By Dropdown */}
+            <div className="relative input-recessed focus-within:input-recessed-focus flex items-center gap-2 flex-[1_1_200px] cursor-pointer">
+              <ArrowDownUp className="w-5 h-5 text-onyx" />
+              <select 
+                value={sortBy}
+                onChange={(e) => setSortBy(e.target.value)}
+                className="w-full appearance-none bg-transparent text-sm font-medium text-onyx focus:outline-none cursor-pointer"
+              >
+                <option value="DATE_DESC">Date: Newest First</option>
+                <option value="DATE_ASC">Date: Oldest First</option>
+                <option value="TOTAL_DESC">Total: High to Low</option>
+                <option value="TOTAL_ASC">Total: Low to High</option>
               </select>
               <div className="pointer-events-none text-slate-400 text-xs">▼</div>
             </div>
@@ -326,6 +366,7 @@ export default function AdminFilters({ currentYear, isCustomerScope, exportButto
                 { key: 'col_seller', label: 'Seller' },
                 { key: 'col_type', label: 'Commodity' },
                 { key: 'col_volume', label: 'Volume' },
+                { key: 'col_rate', label: 'Rate' },
                 { key: 'col_capital', label: 'Capital' },
                 { key: 'col_audit', label: 'Audit Trail' }
               ].map(col => (

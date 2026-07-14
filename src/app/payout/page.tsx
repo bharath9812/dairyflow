@@ -2,7 +2,7 @@
 /* eslint-disable @typescript-eslint/no-explicit-any, @typescript-eslint/no-unused-vars, react-hooks/exhaustive-deps */
 
 import React, { useState, useEffect } from 'react'
-import { Receipt, Search, FileText, CheckCircle2, AlertCircle, Banknote, Loader2, Download, Printer, RefreshCw, CheckSquare, ArrowRightCircle } from 'lucide-react'
+import { Receipt, Search, FileText, CheckCircle2, AlertCircle, Banknote, Loader2, Download, Printer, RefreshCw, CheckSquare, ArrowRightCircle, Calendar } from 'lucide-react'
 import Link from 'next/link'
 import TopBar from '@/components/TopBar'
 import Wrapper from '@/components/Wrapper'
@@ -56,20 +56,34 @@ export default function PayoutTrackerPage() {
       .eq('cycle_identifier', cycle)
       .order('net_payable', { ascending: false })
 
-    // Also fetch active loans
-    const { data: loansData } = await supabase
-      .from('loans')
-      .select('id, customer_id, status')
+    // Fetch active loans as a fallback
+    const { data: activeLoansData } = await supabase
+      .from('v_loan_current_state')
+      .select('loan_id, customer_id')
       .eq('status', 'ACTIVE')
+
+    // Fetch loan payments for this cycle to map closed loans
+    const { data: loanPaymentsData } = await supabase
+      .from('loan_payments')
+      .select('loan_id, loans!inner(customer_id)')
+      .eq('cycle_identifier', cycle)
+
+    // Combine payouts with loan IDs
+    const payoutsWithLoans = (data || []).map((p: any) => {
+      if (p.customer_id) {
+        // 1. Did they have a payment in this cycle? (Ledger source of truth)
+        const lp = loanPaymentsData?.find((payment: any) => payment.loans?.customer_id === p.customer_id)
+        // 2. Do they have an active loan right now?
+        const l = activeLoansData?.find((loan: any) => loan.customer_id === p.customer_id)
+        return { ...p, active_loan_id: lp?.loan_id || l?.loan_id || null }
+      }
+      return { ...p, active_loan_id: null }
+    })
 
     if (error) {
       console.error('Error fetching payouts:', error)
     } else {
-      const merged = (data || []).map((p: any) => {
-        const l = loansData?.find((loan: any) => loan.customer_id === p.customer_id)
-        return { ...p, active_loan_id: l?.id || null }
-      })
-      setPayouts(merged)
+      setPayouts(payoutsWithLoans)
     }
     setIsLoading(false)
   }
@@ -90,8 +104,10 @@ export default function PayoutTrackerPage() {
         .eq('cycle_identifier', cycle)
         
       if (!aggregates || aggregates.length === 0) {
-        alert('No milk poured by any customer in this cycle.')
-        return
+        if (!confirm('No milk poured by any customer in this cycle. Do you still want to generate blank settlement records (e.g., to process loan rollovers)?')) {
+          setIsGenerating(false)
+          return
+        }
       }
 
       // 2. Use RPC to generate and update all payouts (Enterprise Backend)
@@ -420,109 +436,110 @@ export default function PayoutTrackerPage() {
         dateString={new Date().toLocaleDateString('en-GB', { weekday: 'long', year: 'numeric', month: 'short', day: 'numeric' })}
       />
 
-      <main className="flex-1 flex flex-col w-full p-4 md:p-6 lg:p-8 overflow-hidden relative">
-        <Wrapper
-          statsBar={
-            <div className="flex flex-col sm:flex-row gap-4 w-full xl:w-auto items-center">
-              <div className="bg-gradient-to-br from-white/80 to-indigo-50/50 backdrop-blur-2xl border border-white/40 rounded-xl p-4 flex flex-col justify-between shadow-sm relative overflow-hidden min-w-[200px]">
-                <div className="flex items-center gap-1.5 text-xs font-bold text-indigo-700 tracking-wider uppercase">
-                  <Receipt className="w-4 h-4" /> CYCLE
+      <main className="flex-1 flex flex-col bg-surface overflow-hidden relative">
+        <div className="w-full max-w-[1440px] mx-auto p-4 md:p-8 lg:p-10 flex-1 flex flex-col min-h-0">
+          <Wrapper
+            statsBar={
+              <div className="flex flex-col sm:flex-row gap-4 w-full xl:w-auto items-center">
+                <div className="bg-white border border-slate-200 rounded-xl p-4 shadow-[0px_4px_20px_rgba(0,0,0,0.03)] min-w-[200px]">
+                  <div className="flex items-center gap-1.5 text-xs font-semibold text-purple-600 tracking-wider uppercase">
+                    <Calendar className="w-4 h-4" /> CYCLE
+                  </div>
+                  <div className="mt-2 text-xl font-semibold text-onyx">
+                    <select 
+                      value={cycle}
+                      onChange={(e) => setCycle(e.target.value)}
+                      className="bg-transparent border-none outline-none focus:ring-0 p-0 text-xl font-semibold text-onyx cursor-pointer w-full"
+                    >
+                      {[...Array(8)].map((_, i) => {
+                        const d = new Date()
+                        d.setMonth(d.getMonth() - Math.floor(i/2))
+                        const y = d.getFullYear()
+                        const m = String(d.getMonth() + 1).padStart(2, '0')
+                        const c = i % 2 === 0 ? 'C2' : 'C1'
+                        const val = `${y}-${m}-${c}`
+                        const dates = getCycleDates(val, cycleConfig)
+                        const displayDate = `${new Date(dates.startDate).toLocaleDateString('en-GB', { month: 'short', day: 'numeric' })} - ${new Date(dates.endDate).toLocaleDateString('en-GB', { month: 'short', day: 'numeric' })}`
+                        return <option key={val} value={val}>{val} ({displayDate})</option>
+                      })}
+                    </select>
+                  </div>
                 </div>
-                <div className="mt-2 text-xl font-bold text-onyx">
-                  <select 
-                    value={cycle}
-                    onChange={(e) => setCycle(e.target.value)}
-                    className="bg-transparent border-none outline-none focus:ring-0 p-0 text-xl font-bold text-indigo-900 cursor-pointer"
-                  >
-                    {[...Array(8)].map((_, i) => {
-                      const d = new Date()
-                      d.setMonth(d.getMonth() - Math.floor(i/2))
-                      const y = d.getFullYear()
-                      const m = String(d.getMonth() + 1).padStart(2, '0')
-                      const c = i % 2 === 0 ? 'C2' : 'C1'
-                      const val = `${y}-${m}-${c}`
-                      const dates = getCycleDates(val, cycleConfig)
-                      const displayDate = `${new Date(dates.startDate).toLocaleDateString('en-GB', { month: 'short', day: 'numeric' })} - ${new Date(dates.endDate).toLocaleDateString('en-GB', { month: 'short', day: 'numeric' })}`
-                      return <option key={val} value={val}>{val} ({displayDate})</option>
-                    })}
-                  </select>
-                </div>
-              </div>
 
-              <div className="bg-gradient-to-br from-white/80 to-emerald-50/50 backdrop-blur-2xl border border-white/40 rounded-xl p-4 flex flex-col justify-between shadow-sm relative overflow-hidden min-w-[200px]">
-                <div className="flex items-center gap-1.5 text-xs font-bold text-emerald-700 tracking-wider uppercase">
-                  <Banknote className="w-4 h-4" /> TOTAL CYCLE PAYOUT
+                <div className="bg-white border border-slate-200 rounded-xl p-4 flex flex-col justify-between shadow-[0px_4px_20px_rgba(0,0,0,0.03)] relative overflow-hidden min-w-[200px]">
+                  <div className="flex items-center gap-1.5 text-xs font-semibold text-emerald-600 tracking-wider uppercase">
+                    <Banknote className="w-4 h-4" /> TOTAL CYCLE PAYOUT
+                  </div>
+                  <div className="mt-2 text-2xl font-semibold text-emerald-600 font-mono">
+                    ₹{totalCyclePayout.toLocaleString('en-IN', { minimumFractionDigits: 2 })}
+                  </div>
                 </div>
-                <div className="mt-2 text-2xl font-bold text-emerald-600 font-mono">
-                  ₹{totalCyclePayout.toLocaleString('en-IN', { minimumFractionDigits: 2 })}
+                
+                <button
+                  onClick={handleGenerateOrUpdatePayouts}
+                  disabled={isGenerating}
+                  className="ml-auto px-4 py-3 bg-indigo-600 hover:bg-indigo-700 disabled:bg-slate-200 disabled:text-slate-400 disabled:cursor-not-allowed text-white font-semibold rounded-lg shadow-sm transition-all flex items-center gap-2 text-sm whitespace-nowrap"
+                >
+                  {isGenerating ? <Loader2 className="w-4 h-4 animate-spin" /> : <RefreshCw className="w-4 h-4" />}
+                  Generate / Update Settlements
+                </button>
+              </div>
+            }
+            headerLeft={
+              <div className="flex items-center gap-4">
+                <div className="p-2 bg-emerald-50 text-emerald-600 rounded-lg">
+                  <FileText className="w-5 h-5" />
                 </div>
-              </div>
-              
-              <button
-                onClick={handleGenerateOrUpdatePayouts}
-                disabled={isGenerating}
-                className="ml-auto px-4 py-3 bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 text-white font-bold rounded-xl shadow-md shadow-indigo-600/20 transition-all flex items-center gap-2 text-sm whitespace-nowrap"
-              >
-                {isGenerating ? <Loader2 className="w-4 h-4 animate-spin" /> : <RefreshCw className="w-4 h-4" />}
-                Generate / Update Settlements
-              </button>
-            </div>
-          }
-          headerLeft={
-            <div className="flex items-center gap-4">
-              <div className="p-2 bg-emerald-100 text-emerald-700 rounded-lg">
-                <FileText className="w-5 h-5" />
-              </div>
-              <div>
-                <h2 className="text-lg font-bold text-onyx leading-tight">Settlement Records</h2>
-                <p className="text-sm font-medium text-slate-500">Manage cycle payouts and receipts</p>
-              </div>
-              <div className="ml-4 flex items-center bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 w-64 focus-within:ring-2 ring-emerald-500/20 transition-all">
-                <Search className="w-4 h-4 text-slate-400 mr-2 shrink-0" />
-                <input
-                  type="text"
-                  placeholder="Search sellers..."
-                  value={searchTerm}
-                  onChange={(e) => setSearchTerm(e.target.value)}
-                  className="bg-transparent border-none outline-none text-sm text-onyx font-semibold w-full placeholder:text-slate-400 placeholder:font-medium"
-                />
-              </div>
-              <select
-                value={sortFilter}
-                onChange={(e) => setSortFilter(e.target.value as any)}
-                className="ml-2 bg-white border border-slate-200 rounded-xl px-3 py-2 text-sm font-bold text-slate-600 focus:ring-2 ring-emerald-500/20 outline-none"
-              >
-                <option value="NET_PAYABLE_DESC">Net Payable (High - Low)</option>
-                <option value="NET_PAYABLE_ASC">Net Payable (Low - High)</option>
-                <option value="LOAN_DED_DESC">Loan Deductions (Highest)</option>
-                <option value="CF_PRIN_DESC">C/F Principal (Highest)</option>
-                <option value="NAME_ASC">Seller Name (A-Z)</option>
-              </select>
-              <select
-                value={statusFilter}
-                onChange={(e) => setStatusFilter(e.target.value as any)}
-                className="ml-2 bg-white border border-slate-200 rounded-xl px-3 py-2 text-sm font-bold text-slate-600 focus:ring-2 ring-emerald-500/20 outline-none"
-              >
-                <option value="ALL">All Statuses</option>
-                <option value="PENDING">Pending</option>
-                <option value="PAID">Paid</option>
-              </select>
+                <div>
+                  <h2 className="text-lg font-semibold text-onyx leading-tight">Settlement Records</h2>
+                  <p className="text-sm font-medium text-slate-500">Manage cycle payouts and receipts</p>
+                </div>
+                <div className="ml-4 flex items-center bg-surface border border-slate-200 rounded-lg px-3 py-2 w-64 focus-within:border-onyx transition-colors">
+                  <Search className="w-4 h-4 text-slate-400 mr-2 shrink-0" />
+                  <input
+                    type="text"
+                    placeholder="Search sellers..."
+                    value={searchTerm}
+                    onChange={(e) => setSearchTerm(e.target.value)}
+                    className="bg-transparent border-none outline-none text-sm text-onyx font-medium w-full placeholder:text-slate-400"
+                  />
+                </div>
+                <select
+                  value={sortFilter}
+                  onChange={(e) => setSortFilter(e.target.value as any)}
+                  className="ml-2 bg-white border border-slate-200 rounded-lg px-3 py-2 text-sm font-medium text-slate-600 focus:border-onyx outline-none"
+                >
+                  <option value="NET_PAYABLE_DESC">Net Payable (High - Low)</option>
+                  <option value="NET_PAYABLE_ASC">Net Payable (Low - High)</option>
+                  <option value="LOAN_DED_DESC">Loan Deductions (Highest)</option>
+                  <option value="CF_PRIN_DESC">C/F Principal (Highest)</option>
+                  <option value="NAME_ASC">Seller Name (A-Z)</option>
+                </select>
+                <select
+                  value={statusFilter}
+                  onChange={(e) => setStatusFilter(e.target.value as any)}
+                  className="ml-2 bg-white border border-slate-200 rounded-lg px-3 py-2 text-sm font-medium text-slate-600 focus:border-onyx outline-none"
+                >
+                  <option value="ALL">All Statuses</option>
+                  <option value="PENDING">Pending</option>
+                  <option value="PAID">Paid</option>
+                </select>
             </div>
           }
         >
-          <div className="relative flex-1 flex flex-col min-h-0 overflow-hidden">
+          <div className="relative flex-1 flex flex-col min-h-0 overflow-hidden bg-white">
             {/* Toolbar for bulk actions */}
-            <div className="px-6 py-3 bg-slate-50 border-b border-slate-200 flex justify-between items-center z-10">
+            <div className="px-6 py-3 bg-white border-b border-slate-100 flex justify-between items-center z-10">
               <div className="flex items-center gap-4">
                 <button 
                   onClick={toggleAllSelection}
-                  className="flex items-center gap-2 text-sm font-bold text-slate-600 hover:text-indigo-600 transition-colors"
+                  className="flex items-center gap-2 text-sm font-semibold text-slate-600 hover:text-onyx transition-colors"
                 >
-                  <CheckSquare className={`w-4 h-4 ${allSelected ? 'text-indigo-600' : 'text-slate-400'}`} />
+                  <CheckSquare className={`w-4 h-4 ${allSelected ? 'text-onyx' : 'text-slate-400'}`} />
                   {allSelected ? 'Deselect All' : 'Select All'}
                 </button>
                 {selectedPayouts.size > 0 && (
-                  <span className="text-sm font-bold text-indigo-600 bg-indigo-50 px-2 py-0.5 rounded-md">
+                  <span className="text-sm font-medium text-onyx bg-surface px-2 py-0.5 rounded-md border border-slate-200">
                     {selectedPayouts.size} selected
                   </span>
                 )}
@@ -532,13 +549,13 @@ export default function PayoutTrackerPage() {
                   <>
                     <button
                       onClick={markSelectedAsPaid}
-                      className="px-4 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-lg text-sm shadow-sm transition-all"
+                      className="px-4 py-1.5 bg-onyx hover:bg-black text-white font-semibold rounded-lg text-sm shadow-sm transition-all"
                     >
                       Mark Selected as PAID
                     </button>
                     <button
                       onClick={markSelectedAsUnpaid}
-                      className="px-4 py-1.5 bg-amber-600 hover:bg-amber-700 text-white font-bold rounded-lg text-sm shadow-sm transition-all"
+                      className="px-4 py-1.5 bg-white border border-slate-200 hover:bg-slate-50 text-slate-600 font-semibold rounded-lg text-sm transition-all"
                     >
                       Mark as UNPAID
                     </button>
@@ -547,7 +564,7 @@ export default function PayoutTrackerPage() {
                 <button
                   onClick={downloadGlobalReceipts}
                   disabled={isGeneratingGlobal || filteredPayouts.length === 0}
-                  className="px-4 py-1.5 bg-slate-800 hover:bg-slate-900 disabled:opacity-50 text-white font-bold rounded-lg text-sm shadow-sm transition-all flex items-center gap-2"
+                  className="px-4 py-1.5 bg-surface border border-slate-200 hover:bg-slate-100 disabled:opacity-50 text-slate-600 font-semibold rounded-lg text-sm transition-all flex items-center gap-2"
                 >
                   {isGeneratingGlobal ? <Loader2 className="w-4 h-4 animate-spin" /> : <Printer className="w-4 h-4" />}
                   Global PDF Receipts
@@ -557,17 +574,17 @@ export default function PayoutTrackerPage() {
 
             {isLoading ? (
               <div className="flex-1 flex items-center justify-center">
-                <Loader2 className="w-8 h-8 animate-spin text-emerald-600" />
+                <Loader2 className="w-8 h-8 animate-spin text-slate-400" />
               </div>
             ) : payouts.length === 0 ? (
-              <div className="flex-1 flex flex-col items-center justify-center p-8 text-center bg-white border border-slate-200 rounded-2xl m-4 shadow-sm border-dashed">
+              <div className="flex-1 flex flex-col items-center justify-center p-8 text-center bg-surface border border-slate-200 rounded-2xl m-4 shadow-[0px_4px_20px_rgba(0,0,0,0.03)] border-dashed">
                 <AlertCircle className="w-12 h-12 text-slate-300 mb-4" />
-                <h3 className="text-lg font-bold text-onyx">No Settlements Found</h3>
+                <h3 className="text-lg font-semibold text-onyx">No Settlements Found</h3>
                 <p className="text-slate-500 max-w-sm mt-2 mb-6">There are no generated payout records for cycle <b>{cycle}</b>.</p>
                 <button
                   onClick={handleGenerateOrUpdatePayouts}
                   disabled={isGenerating}
-                  className="px-6 py-3 bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 text-white font-bold rounded-xl shadow-sm transition-all flex items-center gap-2"
+                  className="px-6 py-3 bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 text-white font-semibold rounded-lg shadow-sm transition-all flex items-center gap-2"
                 >
                   {isGenerating ? <Loader2 className="w-5 h-5 animate-spin" /> : <RefreshCw className="w-5 h-5" />}
                   Generate Settlements for {cycle}
@@ -576,44 +593,44 @@ export default function PayoutTrackerPage() {
             ) : (
               <div className="flex-1 min-h-0 overflow-y-auto overflow-x-auto custom-scrollbar">
                 <table className="w-full text-left border-collapse min-w-[1000px]">
-                  <thead className="sticky top-0 z-10 bg-white/95 backdrop-blur-sm border-b border-slate-200 text-slate-500 font-semibold uppercase text-xs tracking-wider">
+                  <thead className="sticky top-0 z-10 bg-white border-b border-slate-100 text-slate-500 font-bold text-[11px] uppercase tracking-wider">
                     <tr>
-                      <th className="px-4 py-4 border-b border-slate-200 w-12"></th>
-                      <th className="px-4 py-4 border-b border-slate-200">Status</th>
-                      <th className="px-4 py-4 border-b border-slate-200">Seller Entity</th>
-                      <th className="px-4 py-4 border-b border-slate-200 text-right">Gross Earnings</th>
-                      <th className="px-4 py-4 border-b border-slate-200 text-right">Int. Paid</th>
-                      <th className="px-4 py-4 border-b border-slate-200 text-right">Prin. Paid</th>
-                      <th className="px-4 py-4 border-b border-slate-200 text-right">Net Payable</th>
-                      <th className="px-4 py-4 border-b border-slate-200 text-right">C/F Principal</th>
-                      <th className="px-4 py-4 border-b border-slate-200 text-right">Receipt</th>
+                      <th className="px-4 py-4 border-b border-slate-100 w-12"></th>
+                      <th className="px-4 py-4 border-b border-slate-100 text-center">Status</th>
+                      <th className="px-4 py-4 border-b border-slate-100">Seller Entity</th>
+                      <th className="px-4 py-4 border-b border-slate-100 text-right">Gross Earnings</th>
+                      <th className="px-4 py-4 border-b border-slate-100 text-right">Int. Paid</th>
+                      <th className="px-4 py-4 border-b border-slate-100 text-right">Prin. Paid</th>
+                      <th className="px-4 py-4 border-b border-slate-100 text-center">Net Payable</th>
+                      <th className="px-4 py-4 border-b border-slate-100 text-right">C/F Principal</th>
+                      <th className="px-4 py-4 border-b border-slate-100 text-right">Receipt</th>
                     </tr>
                   </thead>
-                  <tbody className="divide-y divide-slate-100 bg-white">
+                  <tbody className="divide-y divide-slate-50 bg-white">
                     {filteredPayouts.map((row) => (
-                      <tr key={row.id} className={`hover:bg-slate-50/80 transition-colors group ${row.requires_attention ? 'bg-amber-50/30' : ''}`}>
+                      <tr key={row.id} className={`hover:bg-slate-50 transition-colors group ${row.requires_attention ? 'bg-amber-50/10' : ''}`}>
                         <td className="px-4 py-4 whitespace-nowrap">
                           <input 
                             type="checkbox" 
                             checked={selectedPayouts.has(row.id)}
                             onChange={() => toggleSelection(row.id)}
-                            className="w-4 h-4 rounded text-indigo-600 focus:ring-indigo-500 border-slate-300 cursor-pointer"
+                            className="w-4 h-4 rounded text-onyx focus:ring-onyx border-slate-300 cursor-pointer"
                           />
                         </td>
-                        <td className="px-4 py-4 whitespace-nowrap">
+                        <td className="px-4 py-4 whitespace-nowrap text-center">
                           {row.status === 'PAID' ? (
-                            <span className="flex items-center gap-1.5 w-max px-2.5 py-1 rounded-md bg-emerald-50 text-emerald-700 text-xs font-bold border border-emerald-200">
+                            <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-emerald-50 text-emerald-600 text-[10px] font-bold uppercase tracking-wider border border-emerald-200">
                               <CheckCircle2 className="w-3.5 h-3.5" /> PAID
                             </span>
                           ) : (
-                            <span className="flex items-center gap-1.5 w-max px-2.5 py-1 rounded-md bg-amber-50 text-amber-700 text-xs font-bold border border-amber-200">
+                            <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-amber-50 text-amber-600 text-[10px] font-bold uppercase tracking-wider border border-amber-200">
                               <AlertCircle className="w-3.5 h-3.5" /> PENDING
                             </span>
                           )}
                         </td>
                         <td className="px-4 py-4 whitespace-nowrap">
                           <div className="flex items-center gap-3">
-                            <div className={`w-8 h-8 rounded-full border flex items-center justify-center text-xs font-bold ${row.requires_attention ? 'bg-amber-100 border-amber-200 text-amber-700' : 'bg-slate-100 border-slate-200 text-slate-600'}`}>
+                            <div className={`w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold ${row.requires_attention ? 'bg-amber-100 border border-amber-200 text-amber-700' : 'bg-surface border border-slate-100 text-slate-600'}`}>
                               {row.customers?.seller_id}
                             </div>
                             <div>
@@ -621,10 +638,10 @@ export default function PayoutTrackerPage() {
                                 {row.customers?.name || `Seller ${String(row.customers?.seller_id || '').padStart(3, '0')}`}
                               </span>
                               {row.requires_attention && (
-                                <div className="flex items-center gap-2 mt-1">
+                                <div className="flex items-center gap-1.5 mt-1">
                                   <span className="text-[10px] font-bold text-amber-600 uppercase tracking-wide">Needs Repayment</span>
                                   {row.active_loan_id && (
-                                    <Link href={`/loan/${row.active_loan_id}`} className="text-indigo-600 hover:bg-indigo-50 rounded transition-colors" title="Go to Loan">
+                                    <Link href={`/loan/${row.active_loan_id}`} className="text-purple-600 hover:text-purple-700 transition-colors" title="Go to Loan">
                                       <ArrowRightCircle className="w-3.5 h-3.5" />
                                     </Link>
                                   )}
@@ -633,28 +650,28 @@ export default function PayoutTrackerPage() {
                             </div>
                           </div>
                         </td>
-                        <td className="px-4 py-4 whitespace-nowrap text-right text-slate-600 font-medium">
+                        <td className="px-4 py-4 whitespace-nowrap text-right text-onyx font-medium">
                           ₹{Number(row.total_earnings).toLocaleString('en-IN', { minimumFractionDigits: 2 })}
                         </td>
-                        <td className="px-4 py-4 whitespace-nowrap text-right font-mono text-amber-600 font-bold">
-                          {Number(row.interest_paid || 0) > 0 ? `₹${Number(row.interest_paid).toLocaleString('en-IN')}` : '-'}
+                        <td className="px-4 py-4 whitespace-nowrap text-right font-medium">
+                          {Number(row.interest_paid || 0) > 0 ? <span className="text-amber-600">₹{Number(row.interest_paid).toLocaleString('en-IN')}</span> : <span className="text-amber-500 font-bold">-</span>}
                         </td>
-                        <td className="px-4 py-4 whitespace-nowrap text-right font-mono text-emerald-600 font-bold">
-                          {Number(row.principal_paid_from_milk || 0) > 0 ? `₹${Number(row.principal_paid_from_milk).toLocaleString('en-IN')}` : '-'}
+                        <td className="px-4 py-4 whitespace-nowrap text-right font-medium">
+                          {Number(row.principal_paid_from_milk || 0) > 0 ? <span className="text-emerald-600">₹{Number(row.principal_paid_from_milk).toLocaleString('en-IN')}</span> : <span className="text-emerald-500 font-bold">-</span>}
                         </td>
-                        <td className="px-4 py-4 whitespace-nowrap text-right">
-                          <span className="font-mono font-bold text-indigo-700 text-base bg-indigo-50 px-3 py-1 rounded-full border border-indigo-100 shadow-sm">
+                        <td className="px-4 py-4 whitespace-nowrap text-center">
+                          <span className="inline-block font-mono font-bold text-blue-600 text-sm bg-blue-50 px-3 py-1 rounded-full border border-blue-100">
                             ₹{Number(row.net_payable).toLocaleString('en-IN', { minimumFractionDigits: 2 })}
                           </span>
                         </td>
-                        <td className="px-4 py-4 whitespace-nowrap text-right text-red-600 font-bold font-mono">
-                          {Number(row.carried_forward_principal || 0) > 0 ? `₹${Number(row.carried_forward_principal).toLocaleString('en-IN')}` : '-'}
+                        <td className="px-4 py-4 whitespace-nowrap text-right text-red-600 font-bold font-mono text-sm">
+                          {Number(row.carried_forward_principal || 0) > 0 ? `₹${Number(row.carried_forward_principal).toLocaleString('en-IN')}` : <span className="text-red-500">-</span>}
                         </td>
                         <td className="px-4 py-4 whitespace-nowrap text-right">
                           <button 
                             onClick={() => downloadReceipt(row)}
                             disabled={downloadingPdfFor === row.id}
-                            className="inline-flex items-center justify-center px-4 py-2 bg-white border border-slate-200 rounded-lg text-sm font-bold text-slate-600 hover:bg-slate-50 hover:text-indigo-600 hover:border-indigo-200 transition-colors shadow-sm disabled:opacity-50 disabled:cursor-not-allowed"
+                            className="inline-flex items-center justify-center px-4 py-2 bg-surface border border-slate-200 rounded-lg text-sm font-semibold text-slate-600 hover:bg-slate-100 hover:text-onyx transition-colors shadow-[0px_2px_10px_rgba(0,0,0,0.02)] disabled:opacity-50 disabled:cursor-not-allowed"
                           >
                             {downloadingPdfFor === row.id ? (
                               <Loader2 className="w-4 h-4 animate-spin" />
@@ -671,6 +688,7 @@ export default function PayoutTrackerPage() {
             )}
           </div>
         </Wrapper>
+        </div>
       </main>
     </div>
   )

@@ -149,7 +149,7 @@ export default function BasicInterfaceSettings() {
               </div>
               <div className="grid grid-cols-1 gap-4 pl-3 border-l-2 border-slate-200">
                 <div className="flex flex-col gap-2">
-                  <label className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">Morning Shift Range</label>
+                  <label className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">AM Shift Range</label>
                   <div className="flex items-center gap-2">
                     <input type="time" defaultValue="03:00" className="bg-white border border-slate-200 rounded-lg px-3 py-1.5 text-xs font-semibold text-onyx focus:outline-none focus:border-onyx focus:ring-1 focus:ring-onyx" />
                     <span className="text-slate-400 text-xs font-medium">to</span>
@@ -157,7 +157,7 @@ export default function BasicInterfaceSettings() {
                   </div>
                 </div>
                 <div className="flex flex-col gap-2">
-                  <label className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">Evening Shift Range</label>
+                  <label className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">PM Shift Range</label>
                   <div className="flex items-center gap-2">
                     <input type="time" defaultValue="15:00" className="bg-white border border-slate-200 rounded-lg px-3 py-1.5 text-xs font-semibold text-onyx focus:outline-none focus:border-onyx focus:ring-1 focus:ring-onyx" />
                     <span className="text-slate-400 text-xs font-medium">to</span>

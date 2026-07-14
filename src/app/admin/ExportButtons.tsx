@@ -6,10 +6,10 @@ import { Download, FileText, Loader2 } from 'lucide-react'
 import { jsPDF } from 'jspdf'
 import autoTable from 'jspdf-autotable'
 
-export default function ExportButtons({ timeframe, exactDate, exactMonth, startDate, endDate, shift, milkType, minQty, qtyOp, search, hiddenCols, customerId }: { timeframe: string, exactDate: string, exactMonth: string, startDate?: string, endDate?: string, shift: string, milkType: string, minQty: string, qtyOp: string, search: string, hiddenCols: string[], customerId?: string }) {
+export default function ExportButtons({ timeframe, exactDate, exactMonth, startDate, endDate, shift, milkType, minQty, qtyOp, search, hiddenCols, customerId, sortBy = 'DATE_DESC' }: { timeframe: string, exactDate: string, exactMonth: string, startDate?: string, endDate?: string, shift: string, milkType: string, minQty: string, qtyOp: string, search: string, hiddenCols: string[], customerId?: string, sortBy?: string }) {
   const [isExportingPDF, setIsExportingPDF] = useState(false)
 
-  const queryStr = `timeframe=${timeframe}&exactDate=${exactDate}&exactMonth=${exactMonth}&startDate=${startDate}&endDate=${endDate}&shift=${shift}&milkType=${milkType}&minQty=${minQty}&qtyOp=${qtyOp}&search=${encodeURIComponent(search)}&hiddenCols=${hiddenCols.join(',')}${customerId ? `&customerId=${customerId}` : ''}`
+  const queryStr = `timeframe=${timeframe}&exactDate=${exactDate}&exactMonth=${exactMonth}&startDate=${startDate}&endDate=${endDate}&shift=${shift}&milkType=${milkType}&minQty=${minQty}&qtyOp=${qtyOp}&search=${encodeURIComponent(search)}&hiddenCols=${hiddenCols.join(',')}${customerId ? `&customerId=${customerId}` : ''}&sortBy=${sortBy}`
 
   const downloadCSV = () => {
     window.open(`/api/export?${queryStr}&format=csv`, '_blank')
@@ -51,130 +51,198 @@ export default function ExportButtons({ timeframe, exactDate, exactMonth, startD
 
       if (customerId && json.data.length > 0) {
         // ==========================================
-        // SELLER OFFICIAL STATEMENT (INVOICE STYLE)
+        // SELLER OFFICIAL STATEMENT (HERITAGE STYLE)
         // ==========================================
         const sellerName = json.data[0].customers?.name || 'Unknown'
         const sellerCode = String(json.data[0].customers?.seller_id).padStart(3, '0')
+        const sellerPhone = json.data[0].customers?.contact || 'N/A'
+        const sellerLoc = json.data[0].customers?.location || 'Unknown Location'
 
-        // 1. Dairy Farm Header (Center Aligned)
-        doc.setFontSize(22)
-        doc.setFont("helvetica", "bold")
-        doc.setTextColor(30, 64, 175) // blue-800
-        doc.text("DAIRYFLOW PROCUREMENT SYSTEM", 105, 20, { align: "center" })
+        const pdfSettings = typeof json.pdfSettings === 'string' ? JSON.parse(json.pdfSettings) : (json.pdfSettings || {});
+        const farmName = pdfSettings.farmName || "SRI LAKSHMI DAIRY FARM - MAIN BRANCH";
+        const farmAddress = pdfSettings.farmAddress || "GSTIN: 37XXXXX1234X1ZX | Plot 42, Industrial Area";
+        const footerMsg = pdfSettings.footerMessage || "This is a computer generated receipt. Please report any discrepancies within 24 hours.";
 
-        doc.setFontSize(9)
-        doc.setFont("helvetica", "normal")
-        doc.setTextColor(100, 116, 139)
-        doc.text("Official Automated Milk Payment Statement | Generated via DairyFlow Admin", 105, 26, { align: "center" })
-
+        // Draw generic logo
         doc.setLineWidth(0.5)
-        doc.setDrawColor(203, 213, 225)
-        doc.line(14, 32, 196, 32)
+        doc.rect(14, 10, 12, 12)
+        doc.setFontSize(7)
+        doc.text("LOGO", 20, 17.5, { align: "center" })
 
-        // 2. Document Title
+        doc.setFont("courier", "bold")
         doc.setFontSize(14)
-        doc.setFont("helvetica", "bold")
-        doc.setTextColor(15, 23, 42)
-        doc.text("MILK PAYMENT STATEMENT", 105, 40, { align: "center" })
-
-        // 3. Meta Info Box
-        doc.setDrawColor(226, 232, 240)
-        doc.setFillColor(248, 250, 252)
-        doc.roundedRect(14, 46, 182, 22, 2, 2, "FD")
+        doc.text(farmName.toUpperCase(), 105, 15, { align: "center" })
 
         doc.setFontSize(9)
-        doc.setFont("helvetica", "bold")
-        doc.setTextColor(71, 85, 105)
-        doc.text("Seller Details:", 18, 52)
-        doc.text("Statement Period:", 110, 52)
+        doc.setFont("courier", "normal")
+        doc.text(farmAddress, 105, 20, { align: "center" })
+        doc.text("Web: www.kosha.bharathreddy.space  E-mail: support@xyz.com", 105, 24, { align: "center" })
 
-        doc.setFont("helvetica", "normal")
-        doc.setTextColor(15, 23, 42)
-        doc.text(`ID: #${sellerCode}  |  Name: ${sellerName}`, 18, 58)
-        doc.text(`${timeLabel}`, 110, 58)
+        doc.text(`Payment Details From: ${startDate || exactDate || 'Start'} To: ${endDate || exactDate || 'End'}`, 105, 30, { align: "center" })
 
-        doc.text(`Phone: ${json.data[0].customers?.contact || 'N/A'}  |  Location: ${json.data[0].customers?.location || 'N/A'}`, 18, 64)
-        doc.text(`Generated On: ${new Date().toLocaleDateString('en-GB')}`, 110, 64)
+        const printDate = new Date().toLocaleDateString('en-GB')
+        const printTime = new Date().toLocaleTimeString('en-GB', { hour12: false })
+        doc.setFontSize(8)
+        doc.text(`Printed by Admin on ${printDate} at ${printTime}`, 14, 38)
+        doc.text(`Page No : 1/1`, 196, 38, { align: "right" })
 
-        // 4. Transactions Table
-        const tableColumn = ['Date', 'Shift', 'Type', 'Qty (L)', 'Rate/L', 'Gross (Rs)']
+        // Divider
+        doc.setLineWidth(0.5)
+        doc.setLineDashPattern([2, 2], 0)
+        doc.line(14, 40, 196, 40)
+
+        // Customer Details
+        doc.setFontSize(9)
+        doc.text(`Route : DEFAULT     : MAIN CENTER`, 14, 44)
+        doc.text(`M C C : 0001        : ${sellerLoc.substring(0, 15).toUpperCase()}`, 14, 49)
+
+        doc.text(`Rep : ${sellerCode.padEnd(8)} : ${sellerName.toUpperCase()}`, 110, 44)
+        doc.text(`Mob : ${sellerPhone}`, 110, 49)
+
+        doc.text(`Bank: HDFC0001013 HDFC BANK LTD "MAIN BRANCH"`, 14, 55)
+        doc.text(`A/C No : 50200090801332`, 145, 55)
+
+        doc.line(14, 57, 196, 57)
+
+        // 4. Transactions Table (Heritage Style)
+        const tableColumn = ['Date', 'Shift', 'Type', 'Qty(L)', 'Fat%', 'Rate', 'Amount']
         const tableRows = json.data.map((tx: any) => {
           const tp = Number(tx.total_price)
+          const qty = Number(tx.quantity_litres)
+          const fat = tx.fat_percentage ? Number(tx.fat_percentage) : 6.5 // fallback
+
+          let displayShift = tx.shift;
+          if (tx.shift === 'Morning' || tx.shift === 'AM') displayShift = 'AM';
+          else if (tx.shift === 'Evening' || tx.shift === 'PM') displayShift = 'PM';
+
           return [
-            new Date(tx.transaction_date).toLocaleDateString('en-GB'),
-            tx.shift === 'Morning' ? 'Morn' : 'Eve',
-            tx.milk_type,
-            Number(tx.quantity_litres).toFixed(1),
+            new Date(tx.transaction_date).toLocaleDateString('en-GB').substring(0, 5), // Just DD/MM
+            displayShift,
+            tx.milk_type === 'Buffalo' ? 'BUF' : 'COW',
+            qty.toFixed(2),
+            fat.toFixed(1),
             Number(tx.price_per_litre).toFixed(2),
             tp.toFixed(2)
           ]
         })
 
+        let tableFontSize = 8;
+        let tablePadding = 1;
+        if (tableRows.length >= 28) {
+          tableFontSize = 7;
+          tablePadding = 0.8;
+        }
+
         autoTable(doc, {
           head: [tableColumn],
           body: tableRows,
-          startY: 75,
-          theme: 'grid',
-          headStyles: { fillColor: [30, 64, 175], fontSize: 9, fontStyle: 'bold', halign: 'center' },
-          bodyStyles: { fontSize: 8, textColor: [51, 65, 85], halign: 'center' },
-          alternateRowStyles: { fillColor: [248, 250, 252] },
-
+          startY: 60,
+          theme: 'plain',
+          styles: { font: 'courier', fontSize: tableFontSize, cellPadding: tablePadding, textColor: 20 },
+          headStyles: { fontStyle: 'bold' },
+          margin: { left: 14, right: 14 },
+          didDrawPage: function (data) {
+            const y = data.cursor ? data.cursor.y : 0;
+            if (y > 0) doc.line(14, y, 196, y);
+          }
         })
 
+        // Reset line dash for solid lines below if needed, or keep dashed
+        let finalY = Math.max((doc as any).lastAutoTable.finalY + 4, 100)
+        doc.line(14, finalY - 3, 196, finalY - 3)
 
+        // 5. LOAN SUMMARY (If Applicable)
+        let deductions = 0.00;
+        let actualNet = sumNet;
 
-        const finalY = Math.max((doc as any).lastAutoTable.finalY + 10, 100)
+        if (json.loanInfo) {
+          const lInfo = json.loanInfo;
+          let pPaid = 0;
+          let iPaid = 0;
+          let source = 'N/A';
 
-        // 5. Financial Summary Box
-        doc.setDrawColor(30, 64, 175)
-        doc.setFillColor(239, 246, 255) // blue-50
-        doc.roundedRect(100, finalY, 96, 42, 2, 2, "FD")
+          if (json.currentCyclePayment) {
+            pPaid = Number(json.currentCyclePayment.principal_paid);
+            iPaid = Number(json.currentCyclePayment.interest_paid);
+            source = json.currentCyclePayment.payment_source || 'CYCLE EARNINGS';
+          } else if (json.payout) {
+            pPaid = Number(json.payout.loan_principal_deducted);
+            iPaid = Number(json.payout.loan_interest_deducted);
+            source = 'CYCLE EARNINGS';
+          }
+          deductions = pPaid + iPaid;
+          actualNet = sumNet - deductions;
 
-        doc.setFontSize(10)
-        doc.setFont("helvetica", "normal")
-        doc.setTextColor(71, 85, 105)
-        doc.text("Total Volume (Liters):", 105, finalY + 8)
+          const outst = Number(lInfo.historical_outstanding || 0);
+          const inter = Number(lInfo.historical_interest || 0);
+          const totalDebt = outst + inter;
 
-        doc.setFontSize(8)
-        doc.setTextColor(148, 163, 184)
-        doc.text(`(Cow: ${cowVol.toFixed(1)} L  |  Buffalo: ${bufVol.toFixed(1)} L)`, 105, finalY + 13)
+          doc.setFont("courier", "bold")
+          doc.setFontSize(9)
+          doc.text("LOAN SUMMARY", 14, finalY + 4)
 
-        doc.setFontSize(10)
-        doc.setTextColor(71, 85, 105)
-        doc.text("Gross Payable:", 105, finalY + 20)
+          const loanHead = ['OUTSTANDING', 'INTEREST', 'TOTAL DEBT', 'PRIN. PAID', 'INT. PAID', 'TOTAL PAID', 'SOURCE'];
+          const loanRow = [
+            `Rs. ${outst.toFixed(2)}`,
+            `Rs. ${inter.toFixed(2)}`,
+            `Rs. ${totalDebt.toFixed(2)}`,
+            `Rs. ${pPaid.toFixed(2)}`,
+            `Rs. ${iPaid.toFixed(2)}`,
+            `Rs. ${(pPaid + iPaid).toFixed(2)}`,
+            source.toUpperCase()
+          ];
 
-        doc.setFont("helvetica", "bold")
-        doc.setTextColor(15, 23, 42)
-        doc.text(`${sumVol.toFixed(1)} L`, 190, finalY + 8, { align: "right" })
-        doc.text(`Rs. ${sumCap.toFixed(2)}`, 190, finalY + 20, { align: "right" })
+          autoTable(doc, {
+            head: [loanHead],
+            body: [loanRow],
+            startY: finalY + 6,
+            theme: 'plain',
+            styles: { font: 'courier', fontSize: 8, cellPadding: 1, textColor: 20 },
+            headStyles: { fontStyle: 'bold' },
+            margin: { left: 14, right: 14 },
+            didDrawPage: function (data) {
+              const y = data.cursor ? data.cursor.y : 0;
+              if (y > 0) doc.line(14, y, 196, y);
+            }
+          })
 
-        doc.setFontSize(11)
-        doc.setTextColor(30, 64, 175)
-        doc.text("NET PAYABLE TO SELLER:", 105, finalY + 34)
-        doc.setFontSize(12)
-        doc.text(`Rs. ${sumNet.toFixed(2)}`, 190, finalY + 34, { align: "right" })
-
-        // 6. Signature Lines
-        let sigY = finalY + 60
-        if (sigY > 270) {
-          doc.addPage()
-          sigY = 40
+          finalY = Math.max((doc as any).lastAutoTable.finalY + 4, finalY + 20)
+          doc.line(14, finalY - 3, 196, finalY - 3)
         }
 
+        // 6. Summary Section
+        doc.setFont("courier", "bold")
+        doc.setFontSize(9)
+        doc.text(`Total Qty: ${sumVol.toFixed(2)} L`, 14, finalY + 2)
+        doc.text(`(Cow: ${cowVol.toFixed(1)} L | Buf: ${bufVol.toFixed(1)} L)`, 14, finalY + 7)
+
+        doc.text(`Gross Amount :`, 120, finalY + 2)
+        doc.text(`${sumCap.toFixed(2)}`, 190, finalY + 2, { align: "right" })
+
+        doc.setFont("courier", "normal")
+        doc.text(`Loan Deduction :`, 120, finalY + 7)
+        doc.text(`- Rs. ${deductions.toFixed(2)}`, 190, finalY + 7, { align: "right" })
+
+        doc.line(120, finalY + 10, 196, finalY + 10)
+
+        doc.setFont("courier", "bold")
         doc.setFontSize(10)
-        doc.setFont("helvetica", "bold")
-        doc.setTextColor(100, 116, 139)
-        doc.text("__________________________", 20, sigY)
-        doc.text("Seller Signature", 32, sigY + 6)
+        doc.text(`Net Amount Payable Rs :`, 105, finalY + 16)
+        doc.text(`${actualNet.toFixed(2)}`, 190, finalY + 16, { align: "right" })
 
-        doc.text("__________________________", 130, sigY)
-        doc.text("Authorized Farm Signatory", 134, sigY + 6)
+        doc.line(14, finalY + 20, 196, finalY + 20)
 
-        doc.setFontSize(8)
-        doc.setFont("helvetica", "italic")
-        doc.setTextColor(148, 163, 184)
-        doc.text("This is a computer generated receipt. Please report any discrepancies within 24 hours.", 105, sigY + 20, { align: "center" })
+        // Disclaimer & Footer
+        let sigY = finalY + 25
+        if (sigY > 290) {
+          doc.addPage()
+          sigY = 20
+        }
 
+        doc.setFontSize(7)
+        doc.setFont("courier", "normal")
+        doc.text(footerMsg, 105, sigY, { align: "center" })
+        doc.setLineDashPattern([], 0) // reset to solid for the rest of the app
       } else {
         // ==========================================
         // GLOBAL ADMIN EXPORT (OFFICIAL STYLE)

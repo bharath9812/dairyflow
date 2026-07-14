@@ -6,6 +6,7 @@ import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/utils/supabase/client'
 import Sidebar from '@/components/Sidebar'
+import TopBar from '@/components/TopBar'
 import { createSeller } from './actions'
 
 export default function NewSellerPage() {
@@ -43,23 +44,20 @@ export default function NewSellerPage() {
       <div className="flex flex-1 h-[100dvh] overflow-hidden">
         {/* Persistent Sidebar (Desktop) */}
         <Sidebar
-          links={[
-            { label: 'Sellers Directory', href: '/customers', icon: <Users className="w-5 h-5" />, isActive: false },
-            { label: 'Register New', href: '/customers/new', icon: <UserPlus className="w-5 h-5" />, isActive: true },
-          ]}
           onLogout={async () => { await supabase.auth.signOut(); router.push('/login'); }}
         />
 
         <div className="flex-1 flex flex-col h-full overflow-hidden relative">
           {/* Top Navigation Bar */}
-          <header className="h-[60px] flex items-center justify-end px-6 lg:px-10 shrink-0 bg-transparent relative z-20 gap-6">
-            <Link href="/customers" className="text-sm font-semibold text-slate-500 hover:text-onyx transition-colors">
-              Sellers Directory
-            </Link>
-            <Link href="/" className="text-sm font-semibold text-slate-500 hover:text-onyx transition-colors flex items-center gap-1.5">
-              <ArrowLeft className="w-3.5 h-3.5" /> Back to Dashboard
-            </Link>
-          </header>
+          <TopBar
+            leftPillLabel="Sellers Directory"
+            leftPillHref="/customers"
+            leftPillActive={false}
+            rightPillLabel="Register New"
+            rightPillHref="/customers/new"
+            rightPillActive={true}
+            dateString={new Date().toLocaleDateString('en-GB', { weekday: 'long', year: 'numeric', month: 'short', day: 'numeric' })}
+          />
 
           {/* Main Content — Viewport Centered */}
           <main className="flex-1 flex flex-col items-center justify-start p-6 md:p-12 pt-4 md:pt-8 overflow-y-auto custom-scrollbar">

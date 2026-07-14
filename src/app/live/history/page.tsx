@@ -85,105 +85,107 @@ export default function LiveHistoryPage() {
         dateString={new Date().toLocaleDateString('en-GB', { weekday: 'long', year: 'numeric', month: 'short', day: 'numeric' })}
       />
 
-      <main className="flex-1 flex flex-col w-full p-4 md:p-6 lg:p-8 overflow-hidden relative">
-        <Wrapper
-          statsBar={
-            <div className="flex flex-col sm:flex-row gap-4 w-full xl:w-auto">
-              <div className="bg-gradient-to-br from-white/80 to-slate-50/50 backdrop-blur-2xl border border-white/40 rounded-xl p-4 flex flex-col justify-between shadow-sm relative overflow-hidden min-w-[250px]">
-                <div className="flex items-center gap-1.5 text-xs font-bold text-slate-700 tracking-wider uppercase">
-                  <Clock className="w-4 h-4" /> SELECT PAST CYCLE
+      <main className="flex-1 flex flex-col bg-surface overflow-hidden relative">
+        <div className="w-full max-w-[1440px] mx-auto p-4 md:p-8 lg:p-10 flex-1 flex flex-col min-h-0">
+          <Wrapper
+            statsBar={
+              <div className="flex flex-col sm:flex-row gap-4 w-full xl:w-auto">
+                <div className="bg-white border border-slate-200 rounded-xl p-4 flex flex-col justify-between shadow-[0px_4px_20px_rgba(0,0,0,0.03)] relative overflow-hidden min-w-[250px]">
+                  <div className="flex items-center gap-1.5 text-xs font-semibold text-slate-500 tracking-wider uppercase">
+                    <Clock className="w-4 h-4 text-onyx" /> SELECT PAST CYCLE
+                  </div>
+                  <div className="mt-2 text-xl font-semibold text-onyx">
+                    <select 
+                      value={selectedCycle}
+                      onChange={(e) => setSelectedCycle(e.target.value)}
+                      className="bg-transparent border-none outline-none focus:ring-0 p-0 text-lg font-semibold text-onyx cursor-pointer w-full"
+                    >
+                      {availableCycles.length === 0 && <option value="">No history available</option>}
+                      {availableCycles.map(c => (
+                        <option key={c} value={c}>{getCycleLabel(c, cycleConfig)}</option>
+                      ))}
+                    </select>
+                  </div>
                 </div>
-                <div className="mt-2 text-xl font-bold text-onyx">
-                  <select 
-                    value={selectedCycle}
-                    onChange={(e) => setSelectedCycle(e.target.value)}
-                    className="bg-transparent border-none outline-none focus:ring-0 p-0 text-lg font-bold text-slate-700 cursor-pointer w-full"
-                  >
-                    {availableCycles.length === 0 && <option value="">No history available</option>}
-                    {availableCycles.map(c => (
-                      <option key={c} value={c}>{getCycleLabel(c, cycleConfig)}</option>
-                    ))}
-                  </select>
+              </div>
+            }
+            headerLeft={
+              <div className="flex items-center gap-3">
+                <div className="p-2 bg-slate-100 text-onyx rounded-lg">
+                  <History className="w-5 h-5" />
+                </div>
+                <div>
+                  <h2 className="text-lg font-semibold text-onyx leading-tight">Aggregate History</h2>
+                  <p className="text-sm font-medium text-slate-500">View performance data of past cycles</p>
                 </div>
               </div>
-            </div>
-          }
-          headerLeft={
-            <div className="flex items-center gap-3">
-              <div className="p-2 bg-slate-100 text-slate-700 rounded-lg">
-                <History className="w-5 h-5" />
-              </div>
-              <div>
-                <h2 className="text-lg font-bold text-onyx leading-tight">Aggregate History</h2>
-                <p className="text-sm font-medium text-slate-500">View performance data of past cycles</p>
-              </div>
-            </div>
-          }
-        >
-          <div className="relative flex-1 flex flex-col min-h-0 overflow-hidden">
-            <div className="flex-1 min-h-0 overflow-y-auto overflow-x-auto custom-scrollbar">
-              <table className="w-full text-left border-collapse min-w-[800px]">
-                <thead className="sticky top-0 z-10 bg-white/95 backdrop-blur-sm border-b border-slate-200 text-slate-500 font-semibold uppercase text-xs tracking-wider">
-                  <tr>
-                    <th className="px-6 py-4 border-b border-slate-200">Rank</th>
-                    <th className="px-6 py-4 border-b border-slate-200">Seller Entity</th>
-                    <th className="px-6 py-4 border-b border-slate-200 text-right">Cycle Earnings</th>
-                    <th className="px-6 py-4 border-b border-slate-200 text-right">Total Vol</th>
-                    <th className="px-6 py-4 border-b border-slate-200 text-right">Shifts (M/E)</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-slate-100 bg-white">
-                  {isLoading ? (
+            }
+          >
+            <div className="relative flex-1 flex flex-col min-h-0 overflow-hidden bg-white">
+              <div className="flex-1 min-h-0 overflow-y-auto overflow-x-auto custom-scrollbar">
+                <table className="w-full text-left border-collapse min-w-[800px]">
+                  <thead className="sticky top-0 z-10 bg-white border-b border-slate-100 text-slate-500 font-medium text-xs">
                     <tr>
-                      <td colSpan={5} className="px-6 py-12 text-center text-slate-400">
-                        Loading...
-                      </td>
+                      <th className="px-6 py-4 font-medium border-b border-slate-100">Rank</th>
+                      <th className="px-6 py-4 font-medium border-b border-slate-100">Seller Entity</th>
+                      <th className="px-6 py-4 font-medium border-b border-slate-100 text-right">Cycle Earnings</th>
+                      <th className="px-6 py-4 font-medium border-b border-slate-100 text-right">Total Vol</th>
+                      <th className="px-6 py-4 font-medium border-b border-slate-100 text-right">Shifts (M/E)</th>
                     </tr>
-                  ) : aggregates.length === 0 ? (
-                    <tr>
-                      <td colSpan={5} className="px-6 py-12 text-center text-slate-400">
-                        No aggregates found for the selected cycle.
-                      </td>
-                    </tr>
-                  ) : (
-                    aggregates.map((row, index) => (
-                      <tr key={row.id} className="hover:bg-slate-50/80 transition-colors group">
-                        <td className="px-6 py-4 whitespace-nowrap text-sm font-bold text-slate-400">
-                          #{index + 1}
-                        </td>
-                        <td className="px-6 py-4 whitespace-nowrap">
-                          <Link href={`/customers/${row.customer_id}`} className="flex items-center gap-3 group/link">
-                            <div className="w-8 h-8 rounded-full bg-slate-100 border border-slate-200 flex items-center justify-center text-xs font-bold text-slate-600">
-                              {row.customers?.seller_id}
-                            </div>
-                            <span className="font-semibold text-onyx group-hover/link:text-blue-600 transition-colors">
-                              {row.customers?.name || `Seller ${String(row.customers?.seller_id || '').padStart(3, '0')}`}
-                            </span>
-                          </Link>
-                        </td>
-                        <td className="px-6 py-4 whitespace-nowrap text-right">
-                          <span className="font-mono font-bold text-emerald-600 text-base bg-emerald-50 px-3 py-1 rounded-full border border-emerald-100">
-                            ₹{(Number(row.total_earnings) || 0).toFixed(2)}
-                          </span>
-                        </td>
-                        <td className="px-6 py-4 whitespace-nowrap text-right">
-                          <div className="font-bold text-onyx">{(Number(row.total_litres) || 0).toFixed(1)} L</div>
-                        </td>
-                        <td className="px-6 py-4 whitespace-nowrap text-right">
-                          <div className="flex items-center justify-end gap-2">
-                            <span className="flex items-center gap-1 text-sm font-medium text-slate-500 bg-slate-50 px-2 py-0.5 rounded-md border border-slate-200">
-                              M: {row.morning_shifts_count || 0} / E: {row.evening_shifts_count || 0}
-                            </span>
-                          </div>
+                  </thead>
+                  <tbody className="divide-y divide-slate-50 bg-white">
+                    {isLoading ? (
+                      <tr>
+                        <td colSpan={5} className="px-6 py-12 text-center text-slate-400">
+                          Loading...
                         </td>
                       </tr>
-                    ))
-                  )}
-                </tbody>
-              </table>
+                    ) : aggregates.length === 0 ? (
+                      <tr>
+                        <td colSpan={5} className="px-6 py-12 text-center text-slate-400">
+                          No aggregates found for the selected cycle.
+                        </td>
+                      </tr>
+                    ) : (
+                      aggregates.map((row, index) => (
+                        <tr key={row.id} className="hover:bg-slate-50 transition-colors group">
+                          <td className="px-6 py-4 whitespace-nowrap text-sm font-semibold text-slate-400">
+                            #{index + 1}
+                          </td>
+                          <td className="px-6 py-4 whitespace-nowrap">
+                            <Link href={`/customers/${row.customer_id}`} className="flex items-center gap-3 group/link">
+                              <div className="w-8 h-8 rounded-full bg-surface border border-slate-100 flex items-center justify-center text-xs font-medium text-slate-600">
+                                {row.customers?.seller_id}
+                              </div>
+                              <span className="font-medium text-onyx group-hover/link:text-slate-600 transition-colors">
+                                {row.customers?.name || `Seller ${String(row.customers?.seller_id || '').padStart(3, '0')}`}
+                              </span>
+                            </Link>
+                          </td>
+                          <td className="px-6 py-4 whitespace-nowrap text-right">
+                            <span className="font-mono font-medium text-onyx text-sm bg-surface px-3 py-1 rounded-full border border-slate-100">
+                              ₹{(Number(row.total_earnings) || 0).toFixed(2)}
+                            </span>
+                          </td>
+                          <td className="px-6 py-4 whitespace-nowrap text-right">
+                            <div className="font-medium text-onyx">{(Number(row.total_litres) || 0).toFixed(1)} L</div>
+                          </td>
+                          <td className="px-6 py-4 whitespace-nowrap text-right">
+                            <div className="flex items-center justify-end gap-2">
+                              <span className="flex items-center gap-1 text-sm font-medium text-slate-600 bg-surface px-2 py-0.5 rounded-md border border-slate-100">
+                                AM: {row.am_shifts_count || 0} / PM: {row.pm_shifts_count || 0}
+                              </span>
+                            </div>
+                          </td>
+                        </tr>
+                      ))
+                    )}
+                  </tbody>
+                </table>
+              </div>
             </div>
-          </div>
-        </Wrapper>
+          </Wrapper>
+        </div>
       </main>
     </div>
   )
