@@ -85,7 +85,7 @@ export async function fetchAdminTransactions(filters: { timeframe: string, shift
   }
 
   // Sorting constraint
-  const sortBy = filters.sortBy || 'DATE_DESC'
+  const sortBy = filters.sortBy || 'DATE_ASC'
   if (sortBy === 'DATE_DESC') {
     query = query.order('transaction_date', { ascending: false }).order('created_at', { ascending: false })
   } else if (sortBy === 'DATE_ASC') {
@@ -113,7 +113,7 @@ export async function fetchAdminAggregates(filters: { timeframe: string, shift: 
   const supabase = await createClient()
 
   let query = supabase.from('transactions').select(
-    'quantity_litres, total_price, shift, customers!inner(seller_id, name)'
+    'quantity_litres, total_price, shift, customers!inner(seller_id, name, location)'
   )
 
   if (filters.customerId) {

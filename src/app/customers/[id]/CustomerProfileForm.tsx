@@ -9,16 +9,18 @@ interface ProfileProps {
   initialSellerId: string
   initialName: string
   initialContact: string
-  initialLocation: string
+  initialLocationId: string
+  locations: any[]
 }
 
-export default function CustomerProfileForm({ id, initialSellerId, initialName, initialContact, initialLocation }: ProfileProps) {
+export default function CustomerProfileForm({ id, initialSellerId, initialName, initialContact, initialLocationId, locations }: ProfileProps) {
   const [saving, setSaving] = useState(false)
   const [expanded, setExpanded] = useState(false)
   const [sellerId, setSellerId] = useState(initialSellerId)
   const [name, setName] = useState(initialName || '')
   const [contact, setContact] = useState(initialContact || '')
-  const [location, setLocation] = useState(initialLocation || '')
+  const [locationId, setLocationId] = useState(initialLocationId || '')
+  const [status, setStatus] = useState<{ type: 'error' | 'success', message: string } | null>(null)
 
   useEffect(() => {
     const savedState = localStorage.getItem(`customer-profile-expanded-${id}`)
@@ -37,24 +39,28 @@ export default function CustomerProfileForm({ id, initialSellerId, initialName, 
     e.preventDefault()
     setSaving(true)
 
+    setStatus(null)
+
     const formData = new FormData()
     formData.append('seller_id', sellerId)
     formData.append('name', name)
     formData.append('contact', contact)
-    formData.append('location', location)
+    formData.append('location_id', locationId)
 
     const result = await updateCustomerDetails(id, formData)
 
     if (result.error) {
-      alert("Error updating profile: " + result.error)
+      setStatus({ type: 'error', message: result.error })
     } else {
-      alert("Profile successfully updated!")
+      setStatus({ type: 'success', message: 'Profile successfully updated!' })
+      // Auto-hide success after 4 seconds
+      setTimeout(() => setStatus(null), 4000)
     }
     setSaving(false)
   }
 
   return (
-    <div className="bg-white/70 backdrop-blur-2xl border border-white/40 rounded-xl p-5 flex flex-col shadow-sm">
+    <div className="bg-white/70 backdrop-blur-2xl border border-white/40 rounded-xl p-3 flex flex-col shadow-sm">
       
       {/* Collapsible Header */}
       <div 
@@ -73,6 +79,12 @@ export default function CustomerProfileForm({ id, initialSellerId, initialName, 
       {expanded && (
         <form onSubmit={handleUpdate} className="flex flex-col gap-3 pt-2 animate-in fade-in slide-in-from-top-2 duration-300">
           
+          {status && (
+            <div className={`p-3 rounded-lg text-sm font-medium flex items-start gap-2 ${status.type === 'error' ? 'bg-rose-50 text-rose-700 border border-rose-100' : 'bg-emerald-50 text-emerald-700 border border-emerald-100'}`}>
+              <span>{status.message}</span>
+            </div>
+          )}
+
           {/* Seller ID */}
           <div>
             <label className="text-xs text-slate-500 font-medium flex items-center gap-1 mb-1">
@@ -112,10 +124,15 @@ export default function CustomerProfileForm({ id, initialSellerId, initialName, 
             <label className="text-xs text-slate-500 font-medium flex items-center gap-1 mb-1">
               <MapPin className="w-3.5 h-3.5" /> LOCATION / VILLAGE
             </label>
-            <input
-              type="text" value={location} onChange={e => setLocation(e.target.value)}
+            <select
+              value={locationId} onChange={e => setLocationId(e.target.value)}
               className="w-full bg-white text-onyx text-sm p-2 rounded-md border border-slate-200 focus:border-teal-500 focus:ring-1 focus:ring-teal-500 outline-none transition-all"
-            />
+            >
+              <option value="" disabled>Select a location</option>
+              {locations.map(loc => (
+                <option key={loc.id} value={loc.id}>{loc.name} ({loc.short_code})</option>
+              ))}
+            </select>
           </div>
 
           {/* Save Button */}

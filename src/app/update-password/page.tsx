@@ -20,14 +20,7 @@ export default async function UpdatePasswordPage(props: { searchParams: Promise<
             <p className="text-slate-500 text-sm font-medium">Your identity has been verified. Enter your new secure password below.</p>
           </div>
 
-          {errorMsg && (
-            <div className="mb-6 bg-red-50/80 border border-red-200 text-red-600 px-4 py-3 rounded-xl flex items-start gap-3 text-sm font-medium backdrop-blur-sm">
-              <AlertCircle className="w-5 h-5 shrink-0 mt-0.5" />
-              <p>{errorMsg}</p>
-            </div>
-          )}
-
-          <form action={updatePassword} className="space-y-6">
+          <form action={updatePassword} className="flex flex-col gap-5">
             <div>
               <label className="block text-xs font-bold text-slate-500 mb-2 uppercase tracking-wider" htmlFor="password">New Password</label>
               <div className="relative">

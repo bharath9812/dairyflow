@@ -184,8 +184,8 @@ export default function PayoutTrackerPage() {
       
     const startDate = payout.cycle_start_date
     const endDate = payout.cycle_end_date
-    const sellerName = payout.customers?.name || `Seller ${String(payout.customers?.seller_id || '').padStart(3, '0')}`
-    const sellerCode = String(payout.customers?.seller_id).padStart(3, '0')
+    const sellerName = payout.customers?.name || `Seller ${String(payout.customers?.seller_id || '')}`
+    const sellerCode = String(payout.customers?.seller_id)
 
     // Header
     doc.setFontSize(22)
@@ -221,10 +221,10 @@ export default function PayoutTrackerPage() {
 
     doc.setFont("helvetica", "normal")
     doc.setTextColor(15, 23, 42)
-    doc.text(`ID: #${sellerCode}  |  Name: ${sellerName}`, 18, 58)
-    doc.text(`Cycle ${payout.cycle_identifier} (${startDate} to ${endDate})`, 110, 58)
+    doc.text(`Seller ID: ${sellerCode}`, 18, 58)
+    doc.text(`Cycle ${payout.cycle_identifier} (FROM ${startDate} TO ${endDate})`, 110, 58)
 
-    doc.text(`Phone: ${payout.customers?.contact || 'N/A'}`, 18, 64)
+    doc.text(`Name: ${sellerName.toUpperCase()} | Mob: ${payout.customers?.contact || 'N/A'}`, 18, 64)
     doc.text(`Settlement Date: ${new Date(payout.payout_date).toLocaleDateString('en-GB')}`, 110, 64)
 
     // Transactions Table
@@ -290,10 +290,15 @@ export default function PayoutTrackerPage() {
 
     // Footer
     const pageHeight = doc.internal.pageSize.height
+    let sigY = finalY + 60
+    if (sigY > pageHeight - 10) {
+      sigY = pageHeight - 10
+    }
+    
     doc.setFontSize(8)
     doc.setFont("helvetica", "italic")
     doc.setTextColor(148, 163, 184)
-    doc.text("This is an electronically generated statement and requires no physical signature.", 105, pageHeight - 15, { align: "center" })
+    doc.text("This is an electronically generated statement and requires no physical signature.", 105, sigY, { align: "center" })
   }
 
   const downloadReceipt = async (payout: any) => {
@@ -310,7 +315,7 @@ export default function PayoutTrackerPage() {
       const doc = new jsPDF()
       buildReceiptPage(doc, payout, transactions || [], true)
       
-      const sellerCode = String(payout.customers?.seller_id).padStart(3, '0')
+      const sellerCode = String(payout.customers?.seller_id)
       doc.save(`Payout_Receipt_${sellerCode}_${payout.cycle_identifier}.pdf`)
     } catch (err) {
       console.error(err)
@@ -343,7 +348,7 @@ export default function PayoutTrackerPage() {
       // Define table columns
       const tableColumn = ['ID', 'Seller Name', 'Total Milk (L)', 'Gross Earnings', 'Loan Deductions', 'C/F Principal', 'Net Payable', 'Status']
       const tableRows = filteredPayouts.map(p => {
-        const id = String(p.customers?.seller_id).padStart(3, '0')
+        const id = String(p.customers?.seller_id)
         const name = p.customers?.name || 'Unknown'
         const milk = Number(p.total_milk_litres).toFixed(1)
         const gross = Number(p.total_earnings).toFixed(2)
@@ -401,7 +406,7 @@ export default function PayoutTrackerPage() {
       (p.customers?.name && p.customers.name.toLowerCase().includes(term)) ||
       (p.customers?.location && p.customers.location.toLowerCase().includes(term)) ||
       (p.customers?.contact && p.customers.contact.includes(term)) ||
-      (String(p.customers?.seller_id).padStart(3, '0').includes(term)) ||
+      (String(p.customers?.seller_id).includes(term)) ||
       (String(p.customers?.seller_id) === term)
     )
   }).sort((a, b) => {
@@ -436,8 +441,8 @@ export default function PayoutTrackerPage() {
         dateString={new Date().toLocaleDateString('en-GB', { weekday: 'long', year: 'numeric', month: 'short', day: 'numeric' })}
       />
 
-      <main className="flex-1 flex flex-col bg-surface overflow-hidden relative">
-        <div className="w-full max-w-[1440px] mx-auto p-4 md:p-8 lg:p-10 flex-1 flex flex-col min-h-0">
+      <main className="flex-1 flex flex-col bg-surface overflow-hidden relative -mt-6">
+        <div className="w-full max-w-[1440px] mx-auto px-6 pb-3 pt-3 flex-1 flex flex-col min-h-0">
           <Wrapper
             statsBar={
               <div className="flex flex-col sm:flex-row gap-4 w-full xl:w-auto items-center">
@@ -628,14 +633,14 @@ export default function PayoutTrackerPage() {
                             </span>
                           )}
                         </td>
-                        <td className="px-4 py-4 whitespace-nowrap">
+                        <td className="px-5 py-4 whitespace-nowrap">
                           <div className="flex items-center gap-3">
-                            <div className={`w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold ${row.requires_attention ? 'bg-amber-100 border border-amber-200 text-amber-700' : 'bg-surface border border-slate-100 text-slate-600'}`}>
-                              {row.customers?.seller_id}
+                            <div className="w-auto px-2 h-8 rounded bg-slate-100 border border-slate-200/50 flex items-center justify-center text-[10px] font-mono font-bold tracking-widest text-slate-500">
+                              [{row.customers?.location ? row.customers.location.substring(0, 3).toUpperCase() : 'UNK'}] #{row.customers?.seller_id}
                             </div>
                             <div>
                               <span className="font-semibold text-onyx block">
-                                {row.customers?.name || `Seller ${String(row.customers?.seller_id || '').padStart(3, '0')}`}
+                                {row.customers?.name || `Seller ${String(row.customers?.seller_id || '')}`}
                               </span>
                               {row.requires_attention && (
                                 <div className="flex items-center gap-1.5 mt-1">

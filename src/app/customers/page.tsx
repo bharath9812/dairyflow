@@ -2,7 +2,7 @@
 /* eslint-disable @typescript-eslint/no-explicit-any, @typescript-eslint/no-unused-vars, react-hooks/exhaustive-deps, prefer-const, react/no-unescaped-entities, react-hooks/set-state-in-effect */
 
 import React, { useState, useEffect } from 'react'
-import { Users, Search, Plus, ArrowLeft, UserPlus, CirclePlus, ChevronLeft, ChevronRight, Droplets, MapPin, Phone, LogOut, Trash2, X, AlertTriangle } from 'lucide-react'
+import { Users, Search, Plus, ArrowLeft, UserPlus, CirclePlus, ChevronLeft, ChevronRight, Droplets, MapPin, Phone, LogOut, Trash2, X, AlertTriangle, Filter } from 'lucide-react'
 import Link from 'next/link'
 import Sidebar from '@/components/Sidebar'
 import TopBar from '@/components/TopBar'
@@ -14,6 +14,7 @@ export default function CustomersDirectory() {
   const router = useRouter()
   const [customers, setCustomers] = useState<any[]>([])
   const [search, setSearch] = useState('')
+  const [selectedLocations, setSelectedLocations] = useState<string[]>([])
   const [loading, setLoading] = useState(true)
 
   const [supabase] = useState(() => createClient())
@@ -63,13 +64,20 @@ export default function CustomersDirectory() {
     fetchSellers()
   }, [])
 
-  const filtered = customers.filter(c =>
-    (c.name && c.name.toLowerCase().includes(search.toLowerCase())) ||
-    (c.location && c.location.toLowerCase().includes(search.toLowerCase())) ||
-    (c.contact && c.contact.includes(search)) ||
-    (String(c.seller_id).padStart(3, '0').includes(search)) ||
-    (String(c.seller_id) === search)
-  )
+  const filtered = customers.filter(c => {
+    const locMatch = selectedLocations.length === 0 || selectedLocations.includes(c.location || 'Unknown Location')
+    if (!locMatch) return false
+    
+    return (
+      (c.name && c.name.toLowerCase().includes(search.toLowerCase())) ||
+      (c.location && c.location.toLowerCase().includes(search.toLowerCase())) ||
+      (c.contact && c.contact.includes(search)) ||
+      (String(c.seller_id).includes(search)) ||
+      (String(c.seller_id) === search)
+    )
+  })
+
+  const uniqueLocations = Array.from(new Set(customers.map(c => c.location || 'Unknown Location'))).sort()
 
   const totalPages = Math.ceil(filtered.length / pageSize) || 1
   
@@ -117,7 +125,7 @@ export default function CustomersDirectory() {
             dateString={new Date().toLocaleDateString('en-GB', { weekday: 'long', year: 'numeric', month: 'short', day: 'numeric' })}
           />
 
-          <main className="flex-1 flex flex-col w-full px-4 md:px-6 lg:px-10 xl:px-12 pb-8 pt-4 lg:pt-8 overflow-hidden">
+          <main className="flex-1 flex flex-col w-full px-6 pb-3 pt-3 -mt-6 overflow-hidden">
 
             <div className="w-full max-w-5xl mx-auto flex flex-col h-full min-h-0 animate-in fade-in slide-in-from-bottom-4 duration-500">
               <div className="mb-8 flex flex-col sm:flex-row sm:items-end justify-between gap-4 shrink-0">
@@ -127,85 +135,131 @@ export default function CustomersDirectory() {
                   </h2>
                   <p className="text-slate-500 font-medium text-base mt-2">Manage all registered daily milk suppliers and view their analytics.</p>
                 </div>
+                <div className="flex items-center gap-3 w-full sm:w-auto">
+                  {/* Location Filter Dropdown */}
+                  <div className="relative group">
+                    <button className="flex items-center gap-2 bg-white/80 backdrop-blur-xl border-2 border-slate-200 rounded-lg px-4 py-3 text-sm font-bold text-slate-500 hover:border-onyx transition-all shadow-sm">
+                      <Filter className="w-4 h-4" />
+                      {selectedLocations.length === 0 ? 'All Books' : `${selectedLocations.length} Books`}
+                    </button>
+                    <div className="absolute right-0 top-full mt-2 w-56 bg-white border border-slate-200 rounded-xl shadow-[0px_10px_30px_rgba(0,0,0,0.05)] opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all z-50 p-2 flex flex-col gap-1 max-h-64 overflow-y-auto custom-scrollbar">
+                      <label className="flex items-center gap-3 px-3 py-2 hover:bg-slate-50 rounded-lg cursor-pointer transition-colors">
+                        <input type="checkbox" checked={selectedLocations.length === 0} onChange={() => setSelectedLocations([])} className="rounded text-sky-500 focus:ring-sky-500 w-4 h-4" />
+                        <span className="text-sm font-bold text-slate-700">All Locations</span>
+                      </label>
+                      <div className="h-px bg-slate-100 my-1 mx-2"></div>
+                      {uniqueLocations.map(loc => (
+                        <label key={loc} className="flex items-center gap-3 px-3 py-2 hover:bg-slate-50 rounded-lg cursor-pointer transition-colors">
+                          <input type="checkbox" 
+                            checked={selectedLocations.includes(loc)} 
+                            onChange={(e) => {
+                              if (e.target.checked) setSelectedLocations([...selectedLocations, loc])
+                              else setSelectedLocations(selectedLocations.filter(l => l !== loc))
+                            }} 
+                            className="rounded text-sky-500 focus:ring-sky-500 w-4 h-4" 
+                          />
+                          <span className="text-sm font-bold text-slate-600 truncate">{loc}</span>
+                        </label>
+                      ))}
+                    </div>
+                  </div>
 
-                <div className="relative w-full sm:w-80">
-                  <Search className="w-4 h-4 text-slate-400 absolute left-4 top-1/2 -translate-y-1/2" />
-                  <input
-                    type="text"
-                    placeholder="Search Name or Location..."
-                    value={search}
-                    onChange={(e) => setSearch(e.target.value)}
-                    className="w-full rounded-lg border-2 border-slate-200 bg-white/80 backdrop-blur-xl pl-11 pr-4 py-3 text-sm font-bold text-onyx placeholder:text-slate-400 focus:border-onyx focus:ring-0 transition-all outline-none shadow-sm"
-                  />
+                  {/* Search Bar */}
+                  <div className="relative flex-1 sm:w-64">
+                    <Search className="w-4 h-4 text-slate-400 absolute left-4 top-1/2 -translate-y-1/2" />
+                    <input
+                      type="text"
+                      placeholder="Search Name or ID..."
+                      value={search}
+                      onChange={(e) => setSearch(e.target.value)}
+                      className="w-full rounded-lg border-2 border-slate-200 bg-white/80 backdrop-blur-xl pl-11 pr-4 py-3 text-sm font-bold text-onyx placeholder:text-slate-400 focus:border-onyx focus:ring-0 transition-all outline-none shadow-sm"
+                    />
+                  </div>
                 </div>
               </div>
 
-              <div className="bg-white/80 backdrop-blur-2xl rounded-xl border border-white/40 shadow-sm flex flex-col flex-1 min-h-0 overflow-hidden relative z-20">
-
-                <div className="overflow-x-auto flex-1 min-h-0 overflow-y-auto custom-scrollbar" ref={tableContainerRef}>
-                  <table className="w-full text-left text-sm whitespace-nowrap min-w-[600px]">
-                    <thead className="sticky top-0 z-10 bg-white/95 backdrop-blur-sm border-b border-slate-200/60">
-                      <tr>
-                        <th className="px-6 py-5 font-bold text-slate-400 uppercase tracking-widest text-xs bg-transparent">Seller Details</th>
-                        <th className="px-6 py-5 font-bold text-slate-400 uppercase tracking-widest text-xs bg-transparent">Contact Info</th>
-                        <th className="px-6 py-5 font-bold text-slate-400 uppercase tracking-widest text-xs text-right bg-transparent">Action</th>
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-slate-100/80">
-                      {loading ? (
-                        <tr>
-                          <td colSpan={3} className="px-6 py-12 text-center text-slate-400 font-bold animate-pulse">Loading directory...</td>
-                        </tr>
-                      ) : slicedData.length === 0 ? (
-                        <tr>
-                          <td colSpan={3} className="px-6 py-12 text-center text-slate-400 font-bold">No sellers found on this page.</td>
-                        </tr>
-                      ) : slicedData.map((c) => (
-                        <tr key={c.id} className="hover:bg-white/50 transition-colors group">
-
-                          <td className="px-6 py-5">
-                            <div className="font-black text-onyx text-base flex items-center gap-3">
-                              <span className="text-xs font-mono font-bold bg-slate-100 text-slate-600 px-2 py-1 rounded-md border border-slate-200/50">
-                                #{String(c.seller_id).padStart(3, '0')}
-                              </span>
-                              {c.name ? c.name : `${String(c.seller_id).padStart(3, '0')} Seller`}
-                            </div>
-                            <div className="text-sm text-slate-500 font-medium flex items-center gap-1.5 mt-1.5">
-                              <MapPin className="w-3.5 h-3.5 text-slate-400" /> {c.location || 'Unknown Location'}
-                            </div>
-                          </td>
-
-                          <td className="px-6 py-5">
-                            <div className="text-sm text-onyx font-bold flex items-center gap-2">
-                              <Phone className="w-4 h-4 text-slate-400" /> {c.contact || 'N/A'}
-                            </div>
-                          </td>
-
-                          <td className="px-6 py-5 text-right">
-                            <div className="flex items-center justify-end gap-2">
-                              <Link
-                                href={`/customers/${c.id}`}
-                                className="inline-flex items-center gap-1.5 text-xs font-black text-teal-700 bg-teal-50 hover:bg-teal-100 px-4 py-2.5 rounded-full transition-all border border-teal-100/50 hover:shadow-sm"
-                              >
-                                View Details <ChevronRight className="w-3.5 h-3.5" />
-                              </Link>
-                              <button
-                                onClick={() => setCustomerToDelete(c)}
-                                className="p-2.5 rounded-full bg-rose-50 text-rose-500 hover:bg-rose-100 hover:text-rose-600 transition-colors border border-rose-100/50"
-                                title="Delete Seller"
-                              >
-                                <Trash2 className="w-4 h-4" />
-                              </button>
-                            </div>
-                          </td>
-                        </tr>
+              <div className="flex flex-col flex-1 min-h-0 overflow-hidden relative z-20">
+                <div className="overflow-x-auto flex-1 min-h-0 overflow-y-auto custom-scrollbar pb-6" ref={tableContainerRef}>
+                  
+                  {loading ? (
+                    <div className="bg-white/80 backdrop-blur-2xl rounded-xl border border-white/40 shadow-sm p-12 text-center text-slate-400 font-bold animate-pulse">
+                      Loading directory...
+                    </div>
+                  ) : slicedData.length === 0 ? (
+                    <div className="bg-white/80 backdrop-blur-2xl rounded-xl border border-white/40 shadow-sm p-12 text-center text-slate-400 font-bold">
+                      No sellers found on this page.
+                    </div>
+                  ) : (
+                    <div className="flex flex-col gap-6">
+                      {(Object.entries(
+                        slicedData.reduce((acc, curr) => {
+                          const loc = curr.location || 'Unknown Location'
+                          if (!acc[loc]) acc[loc] = []
+                          acc[loc].push(curr)
+                          return acc
+                        }, {} as Record<string, typeof slicedData>)
+                      ) as [string, typeof slicedData][]).map(([locationName, customers]) => (
+                        <div key={locationName} className="bg-white/80 backdrop-blur-2xl rounded-xl border border-slate-200/60 shadow-sm overflow-hidden flex flex-col min-w-[600px]">
+                          <div className="bg-slate-50/80 px-6 py-4 border-b border-slate-200/60 flex items-center justify-between">
+                            <h3 className="text-sm font-black text-slate-700 uppercase tracking-widest flex items-center gap-2">
+                              <span className="text-rose-500">📍</span> BOOK: {locationName}
+                            </h3>
+                            <span className="text-xs font-bold text-slate-500 bg-white px-3 py-1 rounded-full border border-slate-200/60 shadow-sm">
+                              {customers.length} SELLER{customers.length !== 1 ? 'S' : ''}
+                            </span>
+                          </div>
+                          <table className="w-full text-left text-sm whitespace-nowrap">
+                            <thead className="bg-white border-b border-slate-100">
+                              <tr>
+                                <th className="px-6 py-4 font-bold text-slate-400 uppercase tracking-widest text-[10px]">Seller Details</th>
+                                <th className="px-6 py-4 font-bold text-slate-400 uppercase tracking-widest text-[10px]">Contact Info</th>
+                                <th className="px-6 py-4 font-bold text-slate-400 uppercase tracking-widest text-[10px] text-right">Action</th>
+                              </tr>
+                            </thead>
+                            <tbody className="divide-y divide-slate-50 bg-white/50">
+                              {customers.map((c) => (
+                                <tr key={c.id} className="hover:bg-white transition-colors group">
+                                  <td className="px-6 py-4">
+                                    <div className="font-black text-onyx text-base flex items-center gap-3">
+                                      <span className="text-xs font-mono font-bold bg-slate-100 text-slate-600 px-2 py-1 rounded-md border border-slate-200/50">
+                                        [{c.location ? c.location.substring(0, 3).toUpperCase() : 'UNK'}] #{c.seller_id}
+                                      </span>
+                                      {c.name ? c.name : 'Seller'}
+                                    </div>
+                                  </td>
+                                  <td className="px-6 py-4">
+                                    <div className="text-sm text-onyx font-bold flex items-center gap-2">
+                                      <Phone className="w-4 h-4 text-slate-400" /> {c.contact || 'N/A'}
+                                    </div>
+                                  </td>
+                                  <td className="px-6 py-4 text-right">
+                                    <div className="flex justify-end items-center gap-3">
+                                      <Link href={`/customers/${c.id}`} className="px-4 py-1.5 bg-emerald-50 text-emerald-600 hover:bg-emerald-100 rounded-full text-xs font-bold transition-colors flex items-center gap-1.5">
+                                        View Details
+                                        <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}>
+                                          <path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" />
+                                        </svg>
+                                      </Link>
+                                      <button 
+                                        onClick={() => setCustomerToDelete(c)}
+                                        className="w-8 h-8 flex items-center justify-center text-rose-500 bg-rose-50 hover:bg-rose-100 rounded-full transition-colors"
+                                      >
+                                        <Trash2 className="w-4 h-4" />
+                                      </button>
+                                    </div>
+                                  </td>
+                                </tr>
+                              ))}
+                            </tbody>
+                          </table>
+                        </div>
                       ))}
-                    </tbody>
-                  </table>
+                    </div>
+                  )}
                 </div>
 
                 {totalPages > 1 && (
-                  <div className="sticky bottom-0 z-10 bg-white/95 backdrop-blur-sm border-t border-slate-200/60 p-4 shrink-0 flex items-center justify-between min-w-[600px] w-full">
+                  <div className="sticky bottom-0 z-10 bg-white/95 backdrop-blur-sm border-t border-slate-200/60 p-4 shrink-0 flex items-center justify-between min-w-[600px] w-full rounded-b-xl">
                     <span className="text-xs font-semibold text-slate-500">
                       Showing {(currentPage - 1) * pageSize + 1}-{Math.min(currentPage * pageSize, filtered.length)} of {filtered.length}
                     </span>
@@ -260,7 +314,7 @@ export default function CustomersDirectory() {
             
             <div className="p-6">
               <p className="text-slate-600 text-sm mb-6 leading-relaxed">
-                You are about to delete <strong className="text-slate-900">{customerToDelete.name || `#${String(customerToDelete.seller_id).padStart(3, '0')} Seller`}</strong>. How would you like to proceed?
+                You are about to delete <strong className="text-slate-900">{customerToDelete.name || `#${String(customerToDelete.seller_id)} Seller`}</strong>. How would you like to proceed?
               </p>
               
               <div className="space-y-3">

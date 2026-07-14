@@ -34,7 +34,8 @@ export default function LoanManagementPage() {
         interest_rate_rupees: d.current_interest_rate,
         customers: {
           name: d.customer_name,
-          seller_id: d.customer_seller_id
+          seller_id: d.customer_seller_id,
+          location: d.customer_location
         }
       }))
       setLoans(mappedData)
@@ -77,8 +78,8 @@ export default function LoanManagementPage() {
         dateString={new Date().toLocaleDateString('en-GB', { weekday: 'long', year: 'numeric', month: 'short', day: 'numeric' })}
       />
 
-      <main className="flex-1 flex flex-col bg-surface overflow-hidden relative">
-        <div className="w-full max-w-[1440px] mx-auto p-4 md:p-8 lg:p-10 flex-1 flex flex-col min-h-0">
+      <main className="flex-1 flex flex-col bg-surface overflow-hidden relative -mt-6">
+        <div className="w-full max-w-[1440px] mx-auto px-6 pb-3 pt-3 flex-1 flex flex-col min-h-0">
           <Wrapper
             statsBar={
               <div className="flex flex-col sm:flex-row gap-4 w-full xl:w-auto">
@@ -194,11 +195,11 @@ export default function LoanManagementPage() {
                             </td>
                             <td className="px-6 py-4 whitespace-nowrap">
                               <div className="flex items-center gap-3">
-                                <div className="w-8 h-8 rounded-full bg-surface border border-slate-100 flex items-center justify-center text-xs font-medium text-slate-600">
-                                  {row.customers?.seller_id}
+                                <div className="w-auto px-2 h-8 rounded bg-slate-100 border border-slate-200/50 flex items-center justify-center text-[10px] font-mono font-bold tracking-widest text-slate-500">
+                                  [{row.customers?.location ? row.customers.location.substring(0, 3).toUpperCase() : 'UNK'}] #{row.customers?.seller_id}
                                 </div>
                                 <span className="font-medium text-onyx">
-                                  {row.customers?.name || `Seller ${String(row.customers?.seller_id || '').padStart(3, '0')}`}
+                                  {row.customers?.name || `Seller ${String(row.customers?.seller_id || '')}`}
                                 </span>
                               </div>
                             </td>

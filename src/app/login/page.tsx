@@ -1,41 +1,36 @@
 'use client'
 /* eslint-disable @typescript-eslint/no-explicit-any, @typescript-eslint/no-unused-vars, react-hooks/exhaustive-deps, prefer-const, react/no-unescaped-entities, react-hooks/set-state-in-effect */
 
-import { useState, useEffect } from 'react'
+import { useState } from 'react'
+import { useRouter, usePathname } from 'next/navigation'
 import { login, signup, sendResetLink } from './actions'
-import { Droplets, AlertCircle, ArrowLeft, CheckCircle2, ArrowRight } from 'lucide-react'
+import { Droplets, ArrowLeft, ArrowRight } from 'lucide-react'
 
 export default function LoginPage() {
   const [mode, setMode] = useState<'login' | 'signup' | 'forgot'>('login')
-  const [errorMsg, setErrorMsg] = useState<string | null>(null)
-  const [successMsg, setSuccessMsg] = useState<string | null>(null)
+  const router = useRouter()
+  const pathname = usePathname()
 
-  // Grab any standard error params from the URL upon mount
-  useEffect(() => {
-    const params = new URLSearchParams(window.location.search)
-    if (params.get('error')) setErrorMsg(params.get('error'))
-    if (params.get('message')) setSuccessMsg(params.get('message'))
-  }, [])
+  // URL params are now handled by GlobalToaster
 
   const handleSubmit = async (formData: FormData) => {
-    setErrorMsg(null)
-    setSuccessMsg(null)
 
     if (mode === 'login') {
       const res = await login(formData)
-      if (res?.error) setErrorMsg(res.error)
+      if (res?.error) router.replace(`${pathname}?error=${encodeURIComponent(res.error)}`, { scroll: false })
+      else if (res?.success) window.location.href = '/'
     } else if (mode === 'signup') {
       const res = await signup(formData)
-      if (res?.error) setErrorMsg(res.error)
+      if (res?.error) router.replace(`${pathname}?error=${encodeURIComponent(res.error)}`, { scroll: false })
       if (res?.success) {
-        setSuccessMsg(res.success)
+        router.replace(`${pathname}?message=${encodeURIComponent(res.success)}`, { scroll: false })
         setMode('login')
       }
     } else if (mode === 'forgot') {
       const res = await sendResetLink(formData)
-      if (res?.error) setErrorMsg(res.error)
+      if (res?.error) router.replace(`${pathname}?error=${encodeURIComponent(res.error)}`, { scroll: false })
       if (res?.success) {
-        setSuccessMsg(res.success)
+        router.replace(`${pathname}?message=${encodeURIComponent(res.success)}`, { scroll: false })
         setMode('login')
       }
     }
@@ -78,21 +73,7 @@ export default function LoginPage() {
             </p>
           </div>
 
-          {errorMsg && (
-            <div className="mb-6 bg-red-50/80 border border-red-200 text-red-600 px-4 py-3 rounded-xl flex items-start gap-3 text-sm font-medium backdrop-blur-sm">
-              <AlertCircle className="w-5 h-5 shrink-0 mt-0.5" />
-              <p>{errorMsg}</p>
-            </div>
-          )}
-
-          {successMsg && (
-            <div className="mb-6 bg-emerald-50/80 border border-emerald-200 text-emerald-700 px-4 py-3 rounded-xl flex items-start gap-3 text-sm font-medium backdrop-blur-sm">
-              <CheckCircle2 className="w-5 h-5 shrink-0 mt-0.5 text-emerald-600" />
-              <p>{successMsg}</p>
-            </div>
-          )}
-
-          <form action={handleSubmit} className="space-y-6">
+          <form action={handleSubmit} className="flex flex-col gap-5">
             
             {mode === 'signup' && (
               <div>

@@ -41,7 +41,7 @@ export default async function AdminLayout({ children }: { children: React.ReactN
             dateString={new Date().toLocaleDateString('en-GB', { weekday: 'long', year: 'numeric', month: 'short', day: 'numeric' })}
           />
 
-          <main className="flex-1 flex flex-col w-full px-4 md:px-6 lg:px-10 xl:px-12 pb-8 pt-4 lg:pt-8 overflow-hidden items-stretch">
+          <main className="flex-1 flex flex-col w-full px-6 pb-3 pt-3 -mt-6 overflow-hidden items-stretch">
             {children}
           </main>
         </div>

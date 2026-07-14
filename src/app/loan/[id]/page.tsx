@@ -188,13 +188,32 @@ export default function LoanDetailsPage() {
   useEffect(() => {
     if (cycleEarnings === 0) {
       setPaymentSource('MANUAL_CASH');
-    } else if (cycleEarnings > 0) {
+    } else if (cycleEarnings > 0 && paymentSource === 'MANUAL_CASH') {
+      // Only auto-switch to cycle earnings if it was manual cash
       setPaymentSource('CYCLE_EARNINGS');
     }
   }, [cycleEarnings, loan?.active_cycle_identifier, loan?.state_version]);
 
   const pPaymentVal = Number(principalPayment) || 0;
   const iPaymentVal = Number(interestPayment) || 0;
+
+  // Auto-switch to Mixed if amount exceeds earnings (Record Payment)
+  useEffect(() => {
+    const totalInput = pPaymentVal + iPaymentVal;
+    if (cycleEarnings > 0 && totalInput > cycleEarnings && paymentSource === 'CYCLE_EARNINGS') {
+      setPaymentSource('CYCLE_EARNINGS_AND_CASH');
+    }
+  }, [pPaymentVal, iPaymentVal, cycleEarnings, paymentSource]);
+
+  // Auto-switch to Mixed if amount exceeds earnings (Edit Repayment)
+  useEffect(() => {
+    const totalEditInput = (Number(editPrin) || 0) + (Number(editInt) || 0);
+    const availableForEdit = Number(editingPayment?.available_cycle_earnings || cycleEarnings);
+    if (availableForEdit > 0 && totalEditInput > availableForEdit && editSource === 'CYCLE_EARNINGS') {
+      setEditSource('CYCLE_EARNINGS_AND_CASH');
+    }
+  }, [editPrin, editInt, editingPayment, cycleEarnings, editSource]);
+
   const isPrincipalExceeding = pPaymentVal > outstandingPrincipal;
   const isInterestExceeding = iPaymentVal > accruedInterest;
 
@@ -275,7 +294,7 @@ export default function LoanDetailsPage() {
         dateString={new Date().toLocaleDateString('en-GB', { weekday: 'long', year: 'numeric', month: 'short', day: 'numeric' })}
       />
 
-      <main className="flex-1 overflow-y-auto p-4 md:p-8 lg:p-10 custom-scrollbar">
+      <main className="flex-1 overflow-y-auto px-6 py-3 -mt-6 custom-scrollbar">
         <div className="w-full max-w-[1440px] mx-auto space-y-6">
           
           {/* Header Card */}
@@ -400,12 +419,12 @@ export default function LoanDetailsPage() {
                   <h3 className="text-lg font-bold text-onyx mb-1">Record Payment</h3>
                   <p className="text-sm text-slate-500">Process a customer&apos;s payment decision towards this loan.</p>
                 </div>
-                {paymentSource === 'CYCLE_EARNINGS' && cycleEarnings > 0 && (
-                  <div className="mt-4 md:mt-0 bg-surface border border-slate-200 px-4 py-2 rounded-xl flex items-center gap-3">
-                    <span className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Available Earnings</span>
-                    <span className="font-mono font-bold text-emerald-600">₹{cycleEarnings.toFixed(0)}</span>
-                  </div>
-                )}
+                <div className="mt-4 md:mt-0 bg-surface border border-slate-200 px-4 py-2 rounded-xl flex items-center gap-3">
+                  <span className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Available Earnings</span>
+                  <span className={`font-mono font-bold ${cycleEarnings > 0 ? 'text-emerald-600' : 'text-slate-500'}`}>
+                    ₹{cycleEarnings > 0 ? cycleEarnings.toFixed(0) : '0'}
+                  </span>
+                </div>
               </div>
               
               {loan.status === 'CLOSED' ? (
@@ -776,7 +795,10 @@ export default function LoanDetailsPage() {
       {editingPayment && (
         <div className="fixed inset-0 bg-slate-900/60 z-[9999] flex items-center justify-center p-4">
           <div className="bg-white rounded-2xl p-6 w-full max-w-md shadow-xl border border-slate-200">
-            <h3 className="text-lg font-bold text-onyx mb-4">Edit Repayment</h3>
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-lg font-bold text-onyx">Edit Repayment</h3>
+              <span className="text-xs font-bold font-mono text-indigo-600 bg-indigo-50 px-2 py-1 rounded-md border border-indigo-100">{editingPayment.cycle_identifier}</span>
+            </div>
             <div className="space-y-4">
               <div>
                 <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-2">Principal Paid</label>
@@ -794,12 +816,12 @@ export default function LoanDetailsPage() {
                   <option value="CYCLE_EARNINGS_AND_CASH">Mixed (Earnings + Cash)</option>
                 </select>
               </div>
-              {editSource === 'CYCLE_EARNINGS' && (
-                <div className="bg-surface border border-slate-200 p-3 rounded-xl flex items-center justify-between mt-2">
-                  <span className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Available Cycle Earnings</span>
-                  <span className="font-mono font-semibold text-onyx">₹{cycleEarnings.toFixed(0)}</span>
-                </div>
-              )}
+              <div className="bg-surface border border-slate-200 p-3 rounded-xl flex items-center justify-between mt-2">
+                <span className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Available Cycle Earnings</span>
+                <span className={`font-mono font-semibold ${Number(editingPayment?.available_cycle_earnings || cycleEarnings) > 0 ? 'text-onyx' : 'text-slate-400'}`}>
+                  ₹{Number(editingPayment?.available_cycle_earnings || cycleEarnings) > 0 ? Number(editingPayment?.available_cycle_earnings || cycleEarnings).toFixed(0) : '0'}
+                </span>
+              </div>
               <div className="flex gap-3 justify-end mt-6">
                 <button onClick={() => setEditingPayment(null)} className="px-5 py-2 text-slate-600 font-semibold hover:bg-slate-100 rounded-lg transition-colors border border-transparent">Cancel</button>
                 <button onClick={savePaymentEdit} className="px-5 py-2 bg-onyx text-white font-semibold rounded-lg hover:bg-black shadow-sm transition-colors">Save Updates</button>

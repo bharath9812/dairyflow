@@ -9,9 +9,10 @@ interface WrapperProps {
   headerLeft: React.ReactNode
   topSection?: React.ReactNode
   bottomSection?: React.ReactNode
+  compact?: boolean
 }
 
-export function TransactionViewModeWrapper({ children, headerLeft, topSection, bottomSection }: WrapperProps) {
+export function TransactionViewModeWrapper({ children, headerLeft, topSection, bottomSection, compact }: WrapperProps) {
   const { mode, toggleMode } = useTransactionViewMode()
 
   return (
@@ -25,7 +26,7 @@ export function TransactionViewModeWrapper({ children, headerLeft, topSection, b
       <div className="w-full flex flex-col flex-1 min-h-0">
         <div className="bg-white/80 backdrop-blur-2xl border border-white/40 rounded-xl shadow-sm overflow-hidden flex flex-col flex-1 min-h-0">
           
-          <div className="px-5 py-5 flex items-center justify-between shrink-0 bg-white/50 border-b border-slate-200/50">
+          <div className={`${compact ? 'px-4 py-2.5' : 'px-5 py-5'} flex items-center justify-between shrink-0 bg-white/50 border-b border-slate-200/50`}>
             {headerLeft}
             
             <button 

@@ -41,7 +41,7 @@ export default function AdminFilters({ currentYear, isCustomerScope, exportButto
   const [search, setSearch] = useState(searchParams.get('search') || '')
   const [hideTable, setHideTable] = useState(searchParams.get('hideTable') === 'true')
   const [hiddenCols, setHiddenCols] = useState<string[]>(searchParams.get('hiddenCols') ? (searchParams.get('hiddenCols') as string).split(',') : [])
-  const [sortBy, setSortBy] = useState(searchParams.get('sortBy') || 'DATE_DESC')
+  const [sortBy, setSortBy] = useState(searchParams.get('sortBy') || 'DATE_ASC')
 
   const isMounted = useRef(false)
 
@@ -65,7 +65,7 @@ export default function AdminFilters({ currentYear, isCustomerScope, exportButto
     setMinQty(searchParams.get('minQty') || '')
     setQtyOp(searchParams.get('qtyOp') || 'gt')
     setSearch(searchParams.get('search') || '')
-    setSortBy(searchParams.get('sortBy') || localStorage.getItem('dairyflow_admin_sort_by') || 'DATE_DESC')
+    setSortBy(searchParams.get('sortBy') || localStorage.getItem('dairyflow_admin_sort_by') || 'DATE_ASC')
     
     // Mark as mounted after first sync
     setTimeout(() => { isMounted.current = true }, 50)
@@ -87,7 +87,7 @@ export default function AdminFilters({ currentYear, isCustomerScope, exportButto
     if (search) params.set('search', search)
     if (hideTable) params.set('hideTable', 'true')
     if (hiddenCols.length > 0) params.set('hiddenCols', hiddenCols.join(','))
-    if (sortBy !== 'DATE_DESC') params.set('sortBy', sortBy)
+    if (sortBy !== 'DATE_ASC') params.set('sortBy', sortBy)
     
     params.set('page', '1') // Reset page on filter change
     
@@ -139,8 +139,8 @@ export default function AdminFilters({ currentYear, isCustomerScope, exportButto
   }
 
   return (
-    <div className="bg-white/80 backdrop-blur-2xl border border-white/40 shadow-sm rounded-xl p-5 flex flex-col shrink-0 transition-all duration-300 w-full relative z-20">
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+    <div className="bg-white/80 backdrop-blur-2xl border border-white/40 shadow-sm rounded-xl p-3 flex flex-col shrink-0 transition-all duration-300 w-full relative z-20">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
         <div className="flex items-center gap-2 text-slate-500 font-semibold text-sm uppercase tracking-wider">
           <Filter className="w-[18px] h-[18px]" />
           ADVANCED FILTERS
@@ -160,9 +160,9 @@ export default function AdminFilters({ currentYear, isCustomerScope, exportButto
       </div>
       
       {isExpanded && (
-        <div className="animate-in slide-in-from-top-2 fade-in duration-300 flex flex-col gap-4 mt-4">
+        <div className="animate-in slide-in-from-top-2 fade-in duration-300 flex flex-col gap-3 mt-3">
           
-          <div className="flex flex-wrap gap-4 items-center">
+          <div className="flex flex-wrap gap-3 items-center">
             
             {/* Timeframe Dropdown */}
             <div className="relative input-recessed focus-within:input-recessed-focus flex items-center gap-2 flex-1 min-w-[200px] cursor-pointer">
@@ -293,7 +293,7 @@ export default function AdminFilters({ currentYear, isCustomerScope, exportButto
 
           </div>
 
-          <div className="flex flex-wrap gap-4 items-center">
+          <div className="flex flex-wrap gap-3 items-center">
             
             {/* Quantity Filter */}
             <div className="relative input-recessed focus-within:input-recessed-focus flex items-center gap-2 flex-1 min-w-[150px]">

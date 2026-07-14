@@ -85,8 +85,8 @@ export default function LiveHistoryPage() {
         dateString={new Date().toLocaleDateString('en-GB', { weekday: 'long', year: 'numeric', month: 'short', day: 'numeric' })}
       />
 
-      <main className="flex-1 flex flex-col bg-surface overflow-hidden relative">
-        <div className="w-full max-w-[1440px] mx-auto p-4 md:p-8 lg:p-10 flex-1 flex flex-col min-h-0">
+      <main className="flex-1 flex flex-col bg-surface overflow-hidden relative -mt-6">
+        <div className="w-full max-w-[1440px] mx-auto px-6 pb-3 pt-3 flex-1 flex flex-col min-h-0">
           <Wrapper
             statsBar={
               <div className="flex flex-col sm:flex-row gap-4 w-full xl:w-auto">
@@ -158,7 +158,7 @@ export default function LiveHistoryPage() {
                                 {row.customers?.seller_id}
                               </div>
                               <span className="font-medium text-onyx group-hover/link:text-slate-600 transition-colors">
-                                {row.customers?.name || `Seller ${String(row.customers?.seller_id || '').padStart(3, '0')}`}
+                                {row.customers?.name || `Seller ${String(row.customers?.seller_id || '')}`}
                               </span>
                             </Link>
                           </td>

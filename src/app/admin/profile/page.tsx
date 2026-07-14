@@ -22,17 +22,6 @@ export default async function AdminProfilePage(props: { searchParams?: Promise<{
 
       {/* Profile Card */}
       <div className="bg-white/80 backdrop-blur-2xl border border-white/40 shadow-sm rounded-xl p-8 relative z-20">
-        
-        {searchParams?.message && (
-          <div className="mb-6 p-4 rounded-xl bg-emerald-50 border border-emerald-100 text-emerald-700 font-bold text-sm">
-            {searchParams.message}
-          </div>
-        )}
-        {searchParams?.error && (
-          <div className="mb-6 p-4 rounded-xl bg-rose-50 border border-rose-100 text-rose-700 font-bold text-sm">
-            {searchParams.error}
-          </div>
-        )}
 
         <form action={updateAdminProfile}>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-8 mb-8">

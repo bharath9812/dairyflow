@@ -87,7 +87,7 @@ export async function GET(request: Request) {
     // Pass
   }
 
-  const sortBy = searchParams.get('sortBy') || 'DATE_DESC'
+  const sortBy = searchParams.get('sortBy') || 'DATE_ASC'
   if (sortBy === 'DATE_DESC') {
     query = query.order('transaction_date', { ascending: false }).order('created_at', { ascending: false })
   } else if (sortBy === 'DATE_ASC') {
@@ -123,7 +123,7 @@ export async function GET(request: Request) {
         const rowParts = []
         if (!hiddenCols.includes('col_sno')) rowParts.push(index + 1)
         if (!hiddenCols.includes('col_date')) rowParts.push(tx.transaction_date, tx.shift)
-        if (!hiddenCols.includes('col_seller')) rowParts.push(String(tx.customers?.seller_id).padStart(3, '0'), `"${tx.customers?.name || 'Unknown'}"`)
+        if (!hiddenCols.includes('col_seller')) rowParts.push(String(tx.customers?.seller_id), `"${tx.customers?.name || 'Unknown'}"`)
         if (!hiddenCols.includes('col_type')) rowParts.push(tx.milk_type)
         if (!hiddenCols.includes('col_volume')) rowParts.push(tx.quantity_litres, tx.fat_percentage)
         if (!hiddenCols.includes('col_capital')) {
@@ -142,7 +142,7 @@ export async function GET(request: Request) {
     let sellerComponent = "Global"
     if (customerId && data.length > 0) {
       const name = data[0].customers?.name?.replace(/\s+/g, '') || "Seller"
-      const id = String(data[0].customers?.seller_id).padStart(3, '0')
+      const id = String(data[0].customers?.seller_id)
       sellerComponent = `${name}_${id}`
     }
 
@@ -171,69 +171,71 @@ export async function GET(request: Request) {
     let loanInfo = null;
     let payout = null;
     let currentCyclePayment = null;
+    let customerInfo = null;
 
-    if (customerId && (timeframe === 'MONTH_FIRST_HALF' || timeframe === 'MONTH_SECOND_HALF')) {
-      let cycleYear = new Date().getFullYear();
-      let cycleMonth = new Date().getMonth() + 1;
-      if (exactMonth) {
-        const [yy, mm] = exactMonth.split('-');
-        cycleYear = parseInt(yy);
-        cycleMonth = parseInt(mm);
-      }
-      const cycleSuffix = timeframe === 'MONTH_SECOND_HALF' ? 'C2' : 'C1';
-      const selectedCycle = `${cycleYear}-${String(cycleMonth).padStart(2, '0')}-${cycleSuffix}`;
-
-      const payoutRes = await supabase
-        .from('payouts')
+    if (customerId) {
+      const custRes = await supabase
+        .from('customers')
         .select('*')
-        .eq('customer_id', customerId)
-        .eq('cycle_identifier', selectedCycle)
-        .limit(1)
+        .eq('id', customerId)
         .single();
-      payout = payoutRes.data;
+      customerInfo = custRes.data;
 
-      const lpRes = await supabase
-        .from('loan_payments')
-        .select('loan_id, loans!inner(customer_id)')
-        .eq('loans.customer_id', customerId)
-        .eq('cycle_identifier', selectedCycle)
-        .limit(1)
-        .single();
-        
-      let targetLoanId = lpRes.data?.loan_id;
-      if (!targetLoanId) {
-        const activeLoanRes = await supabase
-          .from('v_loan_current_state')
-          .select('loan_id')
+      if (timeframe === 'MONTH_FIRST_HALF' || timeframe === 'MONTH_SECOND_HALF') {
+        let cycleYear = new Date().getFullYear();
+        let cycleMonth = new Date().getMonth() + 1;
+        if (exactMonth) {
+          const [yy, mm] = exactMonth.split('-');
+          cycleYear = parseInt(yy);
+          cycleMonth = parseInt(mm);
+        }
+        const cycleSuffix = timeframe === 'MONTH_SECOND_HALF' ? 'C2' : 'C1';
+        const selectedCycle = `${cycleYear}-${String(cycleMonth).padStart(2, '0')}-${cycleSuffix}`;
+
+        const payoutRes = await supabase
+          .from('payouts')
+          .select('*')
           .eq('customer_id', customerId)
-          .eq('status', 'ACTIVE')
+          .eq('cycle_identifier', selectedCycle)
           .limit(1)
           .single();
-        targetLoanId = activeLoanRes.data?.loan_id;
-      }
+        payout = payoutRes.data;
 
-      if (targetLoanId) {
-        const loanRes = await supabase
-          .from('v_loan_current_state')
-          .select('*')
-          .eq('loan_id', targetLoanId)
-          .single();
-        loanInfo = loanRes.data;
-        
-        const payRes = await supabase
+        const lpRes = await supabase
           .from('loan_payments')
-          .select('*')
-          .eq('loan_id', targetLoanId)
-          .order('created_at', { ascending: false });
-        currentCyclePayment = (payRes.data || []).find((p: any) => p.cycle_identifier === selectedCycle) || null;
+          .select('loan_id, loans!inner(customer_id)')
+          .eq('loans.customer_id', customerId)
+          .eq('cycle_identifier', selectedCycle)
+          .limit(1)
+          .single();
+          
+        let targetLoanId = lpRes.data?.loan_id;
+        if (!targetLoanId) {
+          const activeLoanRes = await supabase
+            .from('v_loan_current_state')
+            .select('loan_id')
+            .eq('customer_id', customerId)
+            .eq('status', 'ACTIVE')
+            .limit(1)
+            .single();
+          targetLoanId = activeLoanRes.data?.loan_id;
+        }
 
-        if (currentCyclePayment) {
-          loanInfo.historical_outstanding = Number(currentCyclePayment.principal_before);
-          loanInfo.historical_interest = Number(currentCyclePayment.forecast_interest_charged);
-        } else if (payout) {
-          loanInfo.historical_outstanding = Number(payout.carried_forward_principal) + Number(payout.loan_principal_deducted);
-          loanInfo.historical_interest = Number(payout.loan_interest_deducted) > 0 ? Number(payout.loan_interest_deducted) : (loanInfo.historical_outstanding * Number(loanInfo.current_interest_rate) / 100);
-        } else {
+        if (targetLoanId) {
+          const loanRes = await supabase
+            .from('v_loan_current_state')
+            .select('*')
+            .eq('loan_id', targetLoanId)
+            .single();
+          loanInfo = loanRes.data;
+          
+          const payRes = await supabase
+            .from('loan_payments')
+            .select('*')
+            .eq('loan_id', targetLoanId)
+            .order('created_at', { ascending: false });
+          currentCyclePayment = (payRes.data || []).find((p: any) => p.cycle_identifier === selectedCycle) || null;
+
           loanInfo.historical_outstanding = Number(loanInfo.outstanding_principal);
           loanInfo.historical_interest = Number(loanInfo.forecasted_interest);
         }
@@ -243,7 +245,7 @@ export async function GET(request: Request) {
     const settingsRes = await supabase.from('app_settings').select('value').eq('id', 'pdf_branding').maybeSingle();
     const pdfSettings = settingsRes.data?.value || null;
 
-    return NextResponse.json({ data, payout, loanInfo, currentCyclePayment, pdfSettings })
+    return NextResponse.json({ data, payout, loanInfo, currentCyclePayment, pdfSettings, customerInfo })
   }
 
   return NextResponse.json({ error: 'Unsupported format' }, { status: 400 })

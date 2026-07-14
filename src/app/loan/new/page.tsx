@@ -30,7 +30,7 @@ export default function NewLoanPage() {
   const fetchCustomers = async () => {
     const { data, error } = await supabase
       .from('customers')
-      .select('id, name, seller_id')
+      .select('id, name, seller_id, location')
       .eq('is_active', true)
       .order('seller_id', { ascending: true })
       
@@ -71,7 +71,8 @@ export default function NewLoanPage() {
 
   const filteredCustomers = customers.filter(c => 
     c.name?.toLowerCase().includes(searchTerm.toLowerCase()) || 
-    c.seller_id?.toString().includes(searchTerm)
+    c.seller_id?.toString().includes(searchTerm) ||
+    c.location?.toLowerCase().includes(searchTerm.toLowerCase())
   )
   const selectedCustomer = customers.find(c => c.id === selectedCustomerId)
 
@@ -87,7 +88,7 @@ export default function NewLoanPage() {
         dateString={new Date().toLocaleDateString('en-GB', { weekday: 'long', year: 'numeric', month: 'short', day: 'numeric' })}
       />
 
-      <main className="flex-1 overflow-y-auto p-4 md:p-8 lg:p-10 custom-scrollbar">
+      <main className="flex-1 overflow-y-auto px-6 py-3 -mt-6 custom-scrollbar">
         <div className="w-full max-w-2xl mx-auto space-y-6">
           
           <div className="bg-white border border-slate-200 rounded-2xl p-8 shadow-[0px_12px_40px_rgba(0,0,0,0.04)] relative">
@@ -115,8 +116,8 @@ export default function NewLoanPage() {
                 {selectedCustomer ? (
                   <div className="flex items-center justify-between bg-surface border border-slate-200 p-4 rounded-xl">
                     <div className="flex items-center gap-3">
-                      <div className="w-10 h-10 bg-white border border-slate-200 rounded-lg flex items-center justify-center font-bold text-onyx shadow-sm">
-                        {selectedCustomer.seller_id}
+                      <div className="w-auto px-2 h-8 rounded bg-slate-100 border border-slate-200/50 flex items-center justify-center text-[10px] font-mono font-bold tracking-widest text-slate-500">
+                        [{selectedCustomer.location ? selectedCustomer.location.substring(0, 3).toUpperCase() : 'UNK'}] #{selectedCustomer.seller_id}
                       </div>
                       <div className="font-bold text-onyx text-lg">{selectedCustomer.name}</div>
                     </div>
@@ -133,7 +134,7 @@ export default function NewLoanPage() {
                       <Search className="w-5 h-5 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
                       <input
                         type="text"
-                        placeholder="Search by ID or Name..."
+                        placeholder="Search by ID, Name, or Location..."
                         value={searchTerm}
                         onChange={(e) => setSearchTerm(e.target.value)}
                         className="w-full pl-10 pr-4 py-3 bg-white border border-slate-200 rounded-xl focus:ring-1 focus:border-onyx ring-onyx outline-none text-onyx font-medium transition-all shadow-sm"
@@ -149,10 +150,10 @@ export default function NewLoanPage() {
                             onClick={() => setSelectedCustomerId(c.id)}
                             className="w-full flex items-center gap-3 p-3 hover:bg-slate-50 transition-colors border-b border-slate-100 last:border-0 text-left"
                           >
-                            <div className="w-8 h-8 rounded-full bg-surface border border-slate-200 text-slate-600 flex items-center justify-center font-bold text-xs">
-                              {c.seller_id}
+                            <div className="w-auto px-2 h-8 rounded bg-slate-100 border border-slate-200/50 flex items-center justify-center text-[10px] font-mono font-bold tracking-widest text-slate-500">
+                              [{c.location ? c.location.substring(0, 3).toUpperCase() : 'UNK'}] #{c.seller_id}
                             </div>
-                            <span className="font-medium text-onyx">{c.name}</span>
+                            <span className="font-bold text-onyx">{c.name}</span>
                           </button>
                         ))
                       )}

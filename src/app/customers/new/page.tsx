@@ -18,26 +18,51 @@ export default function NewSellerPage() {
   const [sellerId, setSellerId] = useState('')
   const [isFetchingId, setIsFetchingId] = useState(true)
   const [totalSellers, setTotalSellers] = useState<number>(0)
+  const [locations, setLocations] = useState<any[]>([])
+  const [selectedLocationId, setSelectedLocationId] = useState('')
+  const [newLocationName, setNewLocationName] = useState('')
+  const [isAddingNewLocation, setIsAddingNewLocation] = useState(false)
+
+  useEffect(() => {
+    async function fetchLocations() {
+      const { data } = await supabase.from('locations').select('*').order('name', { ascending: true })
+      if (data) {
+        setLocations(data)
+        if (data.length > 0) setSelectedLocationId(data[0].id)
+      }
+    }
+    fetchLocations()
+  }, [supabase])
 
   useEffect(() => {
     async function getNextId() {
-      const { data, count } = await supabase
-        .from('customers')
-        .select('seller_id', { count: 'exact' })
-        .order('seller_id', { ascending: false })
-        .limit(1)
+      if (!selectedLocationId && !isAddingNewLocation) return
+      setIsFetchingId(true)
+
+      let query = supabase.from('customers').select('seller_id', { count: 'exact' }).order('seller_id', { ascending: false }).limit(1)
+      if (!isAddingNewLocation && selectedLocationId) {
+        query = query.eq('location_id', selectedLocationId)
+      } else {
+        // New location gets ID 1
+        setTotalSellers(0)
+        setSellerId('1')
+        setIsFetchingId(false)
+        return
+      }
+
+      const { data } = await query
 
       if (data && data.length > 0 && data[0].seller_id) {
         setTotalSellers(data[0].seller_id)
-        setSellerId(String(data[0].seller_id + 1).padStart(3, '0'))
+        setSellerId(String(data[0].seller_id + 1))
       } else {
         setTotalSellers(0)
-        setSellerId('001')
+        setSellerId('1')
       }
       setIsFetchingId(false)
     }
     getNextId()
-  }, [supabase])
+  }, [supabase, selectedLocationId, isAddingNewLocation])
 
   return (
     <div className="min-h-[100dvh] bg-surface flex flex-col font-sans text-on-surface">
@@ -59,44 +84,94 @@ export default function NewSellerPage() {
             dateString={new Date().toLocaleDateString('en-GB', { weekday: 'long', year: 'numeric', month: 'short', day: 'numeric' })}
           />
 
-          {/* Main Content — Viewport Centered */}
-          <main className="flex-1 flex flex-col items-center justify-start p-6 md:p-12 pt-4 md:pt-8 overflow-y-auto custom-scrollbar">
+          <main className="flex-1 overflow-y-auto px-6 py-3 -mt-6 custom-scrollbar">
+            <div className="max-w-2xl mx-auto space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500 pb-20">
+              
+              <div className="flex items-center gap-3 mb-2">
+                <Link href="/customers" className="p-2 -ml-2 rounded-full hover:bg-slate-100 transition-colors text-slate-500">
+                  <ArrowLeft className="w-5 h-5" />
+                </Link>
+                <div>
+                  <h1 className="text-3xl font-black text-onyx tracking-tight">Register Seller</h1>
+                  <p className="text-slate-500 text-sm font-medium mt-1">Create a new customer profile and assign an ID.</p>
+                </div>
+              </div>
 
-            <div className="max-w-2xl w-full flex flex-col gap-5 animate-in fade-in slide-in-from-bottom-4 duration-500">
+              {errorMsg && (
+                <div className="p-4 rounded-xl bg-rose-50 border border-rose-100 text-rose-700 flex items-start gap-3">
+                  <AlertTriangle className="w-5 h-5 shrink-0 mt-0.5" />
+                  <p className="text-sm font-bold">{errorMsg}</p>
+                </div>
+              )}
 
-              {/* Registration Card */}
-              <div className="bg-white rounded-2xl border border-slate-200/80 shadow-sm overflow-hidden">
-                <form action={async (formData) => {
-                  setLoading(true)
-                  setErrorMsg('')
-                  const res = await createSeller(formData)
-                  if (res?.error) {
-                    setErrorMsg(res.error)
-                    setLoading(false)
-                  }
-                }} className="p-8 sm:p-10 flex flex-col gap-7">
-                  
-                  {/* Title inside card */}
-                  <div className="flex flex-col gap-1">
-                    <h1 className="text-xl font-bold text-onyx tracking-tight">Register Seller</h1>
-                    <p className="text-sm text-slate-500">Add a new daily milk supplier to the database.</p>
+              <div className="bg-white rounded-3xl border border-slate-200/60 shadow-sm overflow-hidden">
+                <div className="px-6 py-4 border-b border-slate-100 bg-slate-50/50 flex items-center gap-2">
+                  <UserPlus className="w-5 h-5 text-sky-accent" />
+                  <h2 className="font-bold text-slate-800">Seller Details</h2>
+                </div>
+                
+                <form 
+                  className="p-6 md:p-8 space-y-6"
+                  onSubmit={async (e) => {
+                    e.preventDefault()
+                    setLoading(true)
+                    setErrorMsg('')
+                    const formData = new FormData(e.currentTarget)
+                    // Inject our state location variables
+                    if (isAddingNewLocation) {
+                      formData.set('location_new', newLocationName)
+                    } else {
+                      formData.set('location_id', selectedLocationId)
+                    }
+                    const result = await createSeller(formData)
+                    if (result?.error) {
+                      setErrorMsg(result.error)
+                      setLoading(false)
+                    }
+                  }}
+                >
+                  {/* Location Selector (New) */}
+                  <div className="flex flex-col gap-2">
+                    <label className="text-sm font-semibold text-slate-800 flex justify-between">
+                      <span>Location / Village</span>
+                      <button 
+                        type="button" 
+                        onClick={() => setIsAddingNewLocation(!isAddingNewLocation)}
+                        className="text-xs text-sky-accent font-bold hover:underline"
+                      >
+                        {isAddingNewLocation ? 'Select Existing' : '+ Add New Location'}
+                      </button>
+                    </label>
+                    <div className="relative">
+                      <MapPin className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-400" />
+                      {isAddingNewLocation ? (
+                        <input 
+                          type="text" 
+                          value={newLocationName}
+                          onChange={(e) => setNewLocationName(e.target.value)}
+                          placeholder="Type new village or city name..."
+                          required
+                          className="w-full bg-white border border-slate-200 rounded-xl px-4 py-3.5 pl-12 text-slate-800 font-medium focus:border-onyx focus:ring-2 focus:ring-onyx/10 transition-all outline-none"
+                        />
+                      ) : (
+                        <select 
+                          value={selectedLocationId}
+                          onChange={(e) => setSelectedLocationId(e.target.value)}
+                          className="w-full bg-white border border-slate-200 rounded-xl px-4 py-3.5 pl-12 text-slate-800 font-medium focus:border-onyx focus:ring-2 focus:ring-onyx/10 transition-all outline-none appearance-none"
+                        >
+                          {locations.length === 0 ? <option value="" disabled>No locations found...</option> : null}
+                          {locations.map(loc => (
+                            <option key={loc.id} value={loc.id}>{loc.name} ({loc.short_code})</option>
+                          ))}
+                        </select>
+                      )}
+                    </div>
                   </div>
 
-                  {/* Premium Error Banner */}
-                  {errorMsg && (
-                    <div className="bg-rose-50 border border-rose-200/60 p-4 rounded-xl flex items-start gap-3 animate-in fade-in zoom-in-95 duration-200">
-                      <AlertTriangle className="w-5 h-5 text-rose-500 shrink-0 mt-0.5" />
-                      <div className="flex flex-col">
-                        <h4 className="text-sm font-bold text-rose-800">Registration Failed</h4>
-                        <p className="text-xs font-medium text-rose-600/80 mt-0.5">{errorMsg}</p>
-                      </div>
-                    </div>
-                  )}
-
-                  {/* Seller ID Number */}
+                  {/* ID Field */}
                   <div className="flex flex-col gap-2">
-                    <label className="text-sm font-semibold text-slate-800 flex items-center gap-1">
-                      Seller ID Number <span className="text-red-500">*</span>
+                    <label className="text-sm font-semibold text-slate-800">
+                      Seller ID <span className="text-slate-400 font-normal">(Auto-assigned per location)</span>
                     </label>
                     <div className="relative">
                       <User className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-400" />
@@ -106,7 +181,7 @@ export default function NewSellerPage() {
                         required
                         value={sellerId}
                         onChange={(e) => setSellerId(e.target.value)}
-                        placeholder={isFetchingId ? "Generating..." : "001"}
+                        placeholder={isFetchingId ? "Generating..." : "1"}
                         readOnly={isFetchingId}
                         className={`w-full bg-white border border-slate-200 rounded-xl px-4 py-3.5 pl-12 text-slate-800 font-medium focus:border-onyx focus:ring-2 focus:ring-onyx/10 transition-all outline-none ${isFetchingId ? 'opacity-50' : 'opacity-100'}`}
                       />
@@ -123,42 +198,26 @@ export default function NewSellerPage() {
                       <input 
                         name="name"
                         type="text" 
+                        required
                         placeholder="Enter full name"
                         className="w-full bg-white border border-slate-200 rounded-xl px-4 py-3.5 pl-12 text-slate-800 font-medium focus:border-onyx focus:ring-2 focus:ring-onyx/10 transition-all outline-none"
                       />
                     </div>
                   </div>
 
-                  {/* Contact + Location — side by side */}
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                    <div className="flex flex-col gap-2">
-                      <label className="text-sm font-semibold text-slate-800">
-                        Contact Number
-                      </label>
-                      <div className="relative">
-                        <Phone className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-400" />
-                        <input 
-                          name="contact"
-                          type="text" 
-                          placeholder="Ex: 9876543210"
-                          className="w-full bg-white border border-slate-200 rounded-xl px-4 py-3.5 pl-12 text-slate-800 font-medium focus:border-onyx focus:ring-2 focus:ring-onyx/10 transition-all outline-none"
-                        />
-                      </div>
-                    </div>
-
-                    <div className="flex flex-col gap-2">
-                      <label className="text-sm font-semibold text-slate-800">
-                        Location / Village
-                      </label>
-                      <div className="relative">
-                        <MapPin className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-400" />
-                        <input 
-                          name="location"
-                          type="text" 
-                          placeholder="Enter village or city"
-                          className="w-full bg-white border border-slate-200 rounded-xl px-4 py-3.5 pl-12 text-slate-800 font-medium focus:border-onyx focus:ring-2 focus:ring-onyx/10 transition-all outline-none"
-                        />
-                      </div>
+                  {/* Contact */}
+                  <div className="flex flex-col gap-2">
+                    <label className="text-sm font-semibold text-slate-800">
+                      Contact Number
+                    </label>
+                    <div className="relative">
+                      <Phone className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-400" />
+                      <input 
+                        name="contact"
+                        type="text" 
+                        placeholder="Ex: 9876543210"
+                        className="w-full bg-white border border-slate-200 rounded-xl px-4 py-3.5 pl-12 text-slate-800 font-medium focus:border-onyx focus:ring-2 focus:ring-onyx/10 transition-all outline-none"
+                      />
                     </div>
                   </div>
 

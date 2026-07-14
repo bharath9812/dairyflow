@@ -25,7 +25,7 @@ export default async function AdminDashboardPage(props: { searchParams: Promise<
   const search = searchParams?.search || ''
   const hideTable = searchParams?.hideTable === 'true'
   const hiddenCols = searchParams?.hiddenCols?.split(',') || []
-  const sortBy = searchParams?.sortBy || 'DATE_DESC'
+  const sortBy = searchParams?.sortBy || 'DATE_ASC'
 
   const page = parseInt(searchParams?.page || '1', 10)
   const limit = 20
@@ -44,13 +44,14 @@ export default async function AdminDashboardPage(props: { searchParams: Promise<
   const pricingData = pricingRes.data || { cow_price: 40, buffalo_price: 50 }
 
   return (
-    <div className="font-sans flex-1 flex flex-col min-h-0 gap-6 w-full pb-4">
+    <div className="font-sans flex-1 flex flex-col min-h-0 gap-3 w-full pb-4">
 
       {!hideTable && (
         <TransactionViewModeWrapper
+          compact={true}
           topSection={
             <Suspense key="top-section" fallback={
-              <div className="bg-white p-4 rounded-3xl border border-slate-200 w-full flex items-center justify-center animate-pulse min-h-[100px]">
+              <div className="bg-white p-3 rounded-2xl border border-slate-200 w-full flex items-center justify-center animate-pulse min-h-[80px]">
                 <Loader2 className="w-5 h-5 text-blue-500 animate-spin mr-2" />
                 <span className="text-sm font-bold text-slate-400">Loading Filters...</span>
               </div>
@@ -77,61 +78,65 @@ export default async function AdminDashboardPage(props: { searchParams: Promise<
             </Suspense>
           }
           bottomSection={
-            <div key="bottom-section" className="grid grid-cols-1 md:grid-cols-4 gap-4">
-              <div className="bg-white/80 backdrop-blur-2xl border border-white/40 rounded-xl p-4 flex flex-col justify-between shadow-sm relative overflow-hidden group">
-                <div className="text-sm font-semibold text-slate-500 z-10">Total Milk Bought</div>
-                <div className="flex items-baseline gap-1 mt-2 z-10">
-                  <span className="text-3xl font-bold text-onyx tracking-tight">{(aggregates?.total_bought ?? 0).toFixed(1)}</span>
-                  <span className="text-lg font-bold text-slate-500">L</span>
-                </div>
-                {/* Subtle background decoration */}
-                <div className="absolute -right-4 -bottom-4 opacity-[0.03] z-0 transition-transform group-hover:scale-110">
-                  <Database className="w-24 h-24 text-onyx" />
+            <div key="bottom-section" className="grid grid-cols-1 md:grid-cols-4 gap-2 shrink-0 w-full">
+              <div className="bg-white/80 backdrop-blur-2xl border border-white/40 rounded-lg px-3 py-1.5 flex items-center justify-between shadow-sm relative overflow-hidden group">
+                <div className="text-xs font-semibold text-slate-500 z-10">Total Milk Bought</div>
+                <div className="flex items-baseline gap-0.5 z-10">
+                  <span className="text-lg font-bold text-onyx tracking-tight">{(aggregates?.total_bought ?? 0).toFixed(1)}</span>
+                  <span className="text-xs font-bold text-slate-500">L</span>
                 </div>
               </div>
 
-              <div className="bg-white/80 backdrop-blur-2xl border border-white/40 rounded-xl p-4 flex flex-col justify-between shadow-sm relative overflow-hidden group">
-                <div className="text-sm font-semibold text-slate-500 z-10">Capital Deployed</div>
-                <div className="flex items-baseline gap-1 mt-2 z-10">
-                  <span className="text-2xl font-bold text-onyx tracking-tight">₹{(aggregates?.total_spent ?? 0).toFixed(2)}</span>
+              <div className="bg-white/80 backdrop-blur-2xl border border-white/40 rounded-lg px-3 py-1.5 flex items-center justify-between shadow-sm relative overflow-hidden group">
+                <div className="text-xs font-semibold text-slate-500 z-10">Capital Deployed</div>
+                <div className="flex items-baseline gap-0.5 z-10">
+                  <span className="text-lg font-bold text-emerald-600 tracking-tight">₹{(aggregates?.total_spent ?? 0).toFixed(2)}</span>
                 </div>
               </div>
 
-              <div className="bg-gradient-to-br from-white/80 to-amber-50/50 backdrop-blur-2xl border border-white/40 rounded-xl p-4 flex flex-col justify-between shadow-sm relative overflow-hidden">
-                <div className="flex items-center gap-1.5 text-xs font-bold text-amber-600 tracking-wider uppercase">
-                  <Sun className="w-4 h-4" /> AM
+              <div className="bg-white/80 backdrop-blur-2xl border border-white/40 rounded-lg px-3 py-1.5 flex items-center justify-between shadow-sm relative overflow-hidden group">
+                <div className="flex items-center gap-1 text-xs font-semibold text-amber-500 z-10 uppercase tracking-wide">
+                  <Sun className="w-3.5 h-3.5" />
+                  AM
                 </div>
-                <div className="flex items-end justify-between mt-2 z-10">
-                  <div className="flex items-baseline gap-1">
-                    <span className="text-2xl font-bold text-onyx">{(aggregates?.am_bought ?? 0).toFixed(1)}</span>
-                    <span className="text-base font-bold text-slate-500">L</span>
+                <div className="flex items-baseline gap-2 z-10">
+                  <div className="flex items-baseline gap-0.5">
+                    <span className="text-lg font-bold text-onyx tracking-tight">{(aggregates?.am_bought ?? 0).toFixed(1)}</span>
+                    <span className="text-xs font-bold text-slate-500">L</span>
                   </div>
-                  <div className="text-sm font-bold text-emerald-600 font-mono">₹{(aggregates?.am_spent ?? 0).toFixed(0)}</div>
+                  <span className="text-slate-300 text-xs">|</span>
+                  <div className="text-xs font-bold text-emerald-600">
+                    ₹{(aggregates?.am_spent ?? 0).toFixed(0)}
+                  </div>
                 </div>
               </div>
 
-              <div className="bg-gradient-to-br from-white/80 to-purple-50/50 backdrop-blur-2xl border border-white/40 rounded-xl p-4 flex flex-col justify-between shadow-sm relative overflow-hidden">
-                <div className="flex items-center gap-1.5 text-xs font-bold text-indigo-600 tracking-wider uppercase">
-                  <Moon className="w-4 h-4" /> PM
+              <div className="bg-white/80 backdrop-blur-2xl border border-white/40 rounded-lg px-3 py-1.5 flex items-center justify-between shadow-sm relative overflow-hidden group">
+                <div className="flex items-center gap-1 text-xs font-semibold text-indigo-500 z-10 uppercase tracking-wide">
+                  <Moon className="w-3.5 h-3.5" />
+                  PM
                 </div>
-                <div className="flex items-end justify-between mt-2 z-10">
-                  <div className="flex items-baseline gap-1">
-                    <span className="text-2xl font-bold text-onyx">{(aggregates?.pm_bought ?? 0).toFixed(1)}</span>
-                    <span className="text-base font-bold text-slate-500">L</span>
+                <div className="flex items-baseline gap-2 z-10">
+                  <div className="flex items-baseline gap-0.5">
+                    <span className="text-lg font-bold text-onyx tracking-tight">{(aggregates?.pm_bought ?? 0).toFixed(1)}</span>
+                    <span className="text-xs font-bold text-slate-500">L</span>
                   </div>
-                  <div className="text-sm font-bold text-emerald-600 font-mono">₹{(aggregates?.pm_spent ?? 0).toFixed(0)}</div>
+                  <span className="text-slate-300 text-xs">|</span>
+                  <div className="text-xs font-bold text-emerald-600">
+                    ₹{(aggregates?.pm_spent ?? 0).toFixed(0)}
+                  </div>
                 </div>
               </div>
             </div>
           }
           headerLeft={
-            <div key="header-left" className="flex items-center gap-3">
-              <div className="p-2 bg-sky-100 text-sky-700 rounded-lg">
-                <Database className="w-5 h-5" />
+            <div key="header-left" className="flex items-center gap-2">
+              <div className="p-1.5 bg-sky-100 text-sky-700 rounded-md">
+                <Database className="w-4 h-4" />
               </div>
               <div>
-                <h2 className="text-lg font-bold text-onyx leading-tight">System Records</h2>
-                <p className="text-sm font-medium text-slate-500">{txData.count} entries found for current scope</p>
+                <h2 className="text-sm font-bold text-onyx leading-tight">System Records</h2>
+                <p className="text-[11px] font-medium text-slate-500">{txData.count} entries found for current scope</p>
               </div>
             </div>
           }
@@ -141,19 +146,19 @@ export default async function AdminDashboardPage(props: { searchParams: Promise<
               <div className="relative flex-1 flex flex-col min-h-0 overflow-hidden">
                 <div className="flex-1 min-h-0 overflow-y-auto overflow-x-auto custom-scrollbar">
                   <table className="w-full text-left border-collapse min-w-[800px]">
-                    <thead className="sticky top-0 z-10 bg-white/95 backdrop-blur-sm border-b border-slate-200 text-slate-500 font-semibold uppercase text-xs tracking-wider">
+                    <thead className="sticky top-0 z-10 bg-white/95 backdrop-blur-sm border-b border-slate-200 text-slate-500 font-semibold uppercase text-[10px] tracking-wider">
                       <tr>
-                        <th className="px-4 py-4 w-10 text-center"><MultiSelectHeader /></th>
-                        {!hiddenCols.includes('col_sno') && <th className="px-4 py-4 border-b border-slate-200 text-center">S.No</th>}
-                        {!hiddenCols.includes('col_tx_id') && <th className="px-6 py-4 border-b border-slate-200">Tx ID</th>}
-                        {!hiddenCols.includes('col_date') && <th className="px-6 py-4 border-b border-slate-200">Date & Shift</th>}
-                        {!hiddenCols.includes('col_seller') && <th className="px-6 py-4 border-b border-slate-200">Seller Entity</th>}
-                        {!hiddenCols.includes('col_type') && <th className="px-6 py-4 border-b border-slate-200">Commodity</th>}
-                        {!hiddenCols.includes('col_volume') && <th className="px-6 py-4 border-b border-slate-200 text-right">Volume</th>}
-                        {!hiddenCols.includes('col_rate') && <th className="px-6 py-4 border-b border-slate-200 text-right">Rate</th>}
-                        {!hiddenCols.includes('col_capital') && <th className="px-6 py-4 border-b border-slate-200 text-right">Capital Out</th>}
-                        {!hiddenCols.includes('col_audit') && <th className="px-6 py-4 border-b border-slate-200 text-left">Audit Footprint</th>}
-                        <th className="px-4 py-4 border-b border-slate-200 text-right">Actions</th>
+                        <th className="px-4 py-2 text-center"><MultiSelectHeader /></th>
+                        {!hiddenCols.includes('col_sno') && <th className="px-4 py-2 border-b border-slate-200 text-center">S.No</th>}
+                        {!hiddenCols.includes('col_tx_id') && <th className="px-4 py-2 border-b border-slate-200">Tx ID</th>}
+                        {!hiddenCols.includes('col_date') && <th className="px-4 py-2 border-b border-slate-200">Date & Shift</th>}
+                        {!hiddenCols.includes('col_seller') && <th className="px-4 py-2 border-b border-slate-200">Seller Entity</th>}
+                        {!hiddenCols.includes('col_type') && <th className="px-4 py-2 border-b border-slate-200">Commodity</th>}
+                        {!hiddenCols.includes('col_volume') && <th className="px-4 py-2 border-b border-slate-200 text-right">Volume</th>}
+                        {!hiddenCols.includes('col_rate') && <th className="px-4 py-2 border-b border-slate-200 text-right">Rate</th>}
+                        {!hiddenCols.includes('col_capital') && <th className="px-4 py-2 border-b border-slate-200 text-right">Capital Out</th>}
+                        {!hiddenCols.includes('col_audit') && <th className="px-4 py-2 border-b border-slate-200 text-left">Audit Footprint</th>}
+                        <th className="px-4 py-2 border-b border-slate-200 text-right">Actions</th>
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-slate-200/50 bg-white/40">
@@ -166,21 +171,21 @@ export default async function AdminDashboardPage(props: { searchParams: Promise<
                       ) : (
                         txData.data?.map((tx, index) => (
                           <tr key={tx.id} className="hover:bg-slate-50/80 transition-colors group">
-                            <td className="px-4 py-4 text-center align-middle">
+                            <td className="px-4 py-2.5 text-center align-middle">
                               <MultiSelectCheckbox id={tx.id} />
                             </td>
                             {!hiddenCols.includes('col_sno') && (
-                              <td className="px-4 py-4 text-center text-slate-400 font-mono text-xs">
+                              <td className="px-4 py-2.5 text-center text-slate-400 font-mono text-xs">
                                 {offset + index + 1}
                               </td>
                             )}
                             {!hiddenCols.includes('col_tx_id') && (
-                              <td className="px-6 py-4">
+                              <td className="px-6 py-2.5">
                                 <span className="font-mono text-slate-400 text-xs">{tx.id.split('-')[0]}</span>
                               </td>
                             )}
                             {!hiddenCols.includes('col_date') && (
-                              <td className="px-6 py-4">
+                              <td className="px-6 py-2.5">
                                 <div className="font-bold text-slate-800">
                                   {(() => {
                                     const [yy, mm, dd] = tx.transaction_date.split('-')
@@ -194,41 +199,43 @@ export default async function AdminDashboardPage(props: { searchParams: Promise<
                               </td>
                             )}
                             {!hiddenCols.includes('col_seller') && (
-                              <td className="px-6 py-4">
-                                <div className="flex items-center gap-2">
-                                  <span className="text-[10px] font-mono bg-blue-50 text-blue-600 px-1.5 py-0.5 rounded border border-blue-100">
-                                    #{String(tx.customers?.seller_id || 0).padStart(3, '0')}
+                              <td className="px-6 py-2.5 whitespace-nowrap">
+                                <Link href={`/customers/${tx.customer_id}`} className="group/link flex items-center gap-3">
+                                  <div className="w-auto px-2 h-8 rounded bg-slate-100 border border-slate-200/50 flex items-center justify-center text-[10px] font-mono font-bold tracking-widest text-slate-500">
+                                    [{tx.customers?.location ? tx.customers.location.substring(0, 3).toUpperCase() : 'UNK'}] #{tx.customers?.seller_id}
+                                  </div>
+                                  <span className="font-bold text-slate-700 group-hover/link:text-sky-600 transition-colors">
+                                    {tx.customers?.name || `Seller ${String(tx.customers?.seller_id || '')}`}
                                   </span>
-                                  <span className="font-bold text-slate-700">{tx.customers?.name || `${String(tx.customers?.seller_id).padStart(3, '0')} Seller`}</span>
-                                </div>
+                                </Link>
                               </td>
                             )}
                             {!hiddenCols.includes('col_type') && (
-                              <td className="px-6 py-4">
+                              <td className="px-6 py-2.5">
                                 <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-bold border ${tx.milk_type === 'Cow' ? 'bg-amber-50 text-amber-700 border-amber-200' : 'bg-slate-100 text-slate-700 border-slate-200'}`}>
                                   {tx.milk_type === 'Cow' ? '🐄 Cow' : '🐃 Buffalo'}
                                 </span>
                               </td>
                             )}
                             {!hiddenCols.includes('col_volume') && (
-                              <td className="px-6 py-4 text-right">
+                              <td className="px-6 py-2.5 text-right">
                                 <div className="font-black text-slate-800">{Number(tx.quantity_litres).toFixed(1)}L</div>
                                 <div className="text-[10px] font-bold text-slate-400 mt-0.5">{Number(tx.fat_percentage).toFixed(1)}% FAT</div>
                               </td>
                             )}
                             {!hiddenCols.includes('col_rate') && (
-                              <td className="px-6 py-4 text-right align-top">
+                              <td className="px-6 py-2.5 text-right align-top">
                                 <div className="font-bold text-slate-700">₹{Number(tx.price_per_litre).toFixed(2)}</div>
                                 <div className="text-[10px] font-bold text-slate-400 mt-0.5">/ Ltr</div>
                               </td>
                             )}
                             {!hiddenCols.includes('col_capital') && (
-                              <td className="px-6 py-4 text-right align-top">
+                              <td className="px-6 py-2.5 text-right align-top">
                                 <div className="font-black text-emerald-600">₹{Number(tx.net_payable ?? tx.total_price).toFixed(2)}</div>
                               </td>
                             )}
                             {!hiddenCols.includes('col_audit') && (
-                              <td className="px-6 py-4">
+                              <td className="px-6 py-2.5">
                                 <div className="text-[11px] text-slate-500 leading-tight font-medium">
                                   C: {tx.created_by_name || 'Admin'} ({new Date(tx.created_at).toLocaleString([], { dateStyle: 'short', timeStyle: 'short' })})
                                   {tx.updated_at && (
@@ -237,7 +244,7 @@ export default async function AdminDashboardPage(props: { searchParams: Promise<
                                 </div>
                               </td>
                             )}
-                            <td className="px-4 py-4 text-right">
+                            <td className="px-4 py-2.5 text-right">
                               <TransactionActionCell tx={tx} />
                             </td>
                           </tr>

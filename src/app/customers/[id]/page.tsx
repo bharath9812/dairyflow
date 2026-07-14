@@ -47,7 +47,7 @@ export default async function CustomerAnalyticsPage(props: {
   const search = searchParams?.search || ''
   const hideTable = searchParams?.hideTable === 'true'
   const hiddenCols = (searchParams?.hiddenCols || '').split(',').filter(Boolean)
-  const sortBy = searchParams?.sortBy || 'DATE_DESC'
+  const sortBy = searchParams?.sortBy || 'DATE_ASC'
   const page = parseInt(searchParams?.page || '1', 10)
   const limit = 20
   const offset = (page - 1) * limit
@@ -56,13 +56,15 @@ export default async function CustomerAnalyticsPage(props: {
   const supabase = await createClient()
 
   // Fire parallel queries to Supabase
-  const [profileRes, aggregates, txData] = await Promise.all([
+  const [profileRes, aggregates, txData, locationsRes] = await Promise.all([
     supabase.from('customers').select('*').eq('id', id).single(),
     fetchAdminAggregates({ timeframe, shift, milkType, minQty, qtyOp, search, exactDate, exactMonth, startDate, endDate, customerId: id }),
-    fetchAdminTransactions({ timeframe, shift, milkType, minQty, qtyOp, search, exactDate, exactMonth, startDate, endDate, customerId: id, limit, offset, sortBy })
+    fetchAdminTransactions({ timeframe, shift, milkType, minQty, qtyOp, search, exactDate, exactMonth, startDate, endDate, customerId: id, limit, offset, sortBy }),
+    supabase.from('locations').select('*').order('name', { ascending: true })
   ])
 
   const profile = profileRes.data
+  const locations = locationsRes.data || []
 
   // 1. Determine cycle string based on timeframe
   let cycleYear = new Date().getFullYear();
@@ -156,32 +158,32 @@ export default async function CustomerAnalyticsPage(props: {
     <div className="h-screen bg-surface flex flex-col font-sans text-on-surface overflow-hidden antialiased">
 
       {/* Top NavBar */}
-      <header className="bg-white border-b border-slate-200 flex justify-between items-center w-full px-8 py-2 shrink-0 h-16 z-20 relative shadow-sm">
-        <div className="flex items-center gap-4">
-          <div className="flex items-center justify-center w-8 h-8 rounded-md bg-onyx text-white">
-            <Droplets className="w-4 h-4" />
+      <header className="bg-white border-b border-slate-200 flex justify-between items-center w-full px-4 shrink-0 h-12 z-20 relative shadow-sm">
+        <div className="flex items-center gap-3">
+          <div className="flex items-center justify-center w-6 h-6 rounded bg-onyx text-white">
+            <Droplets className="w-3.5 h-3.5" />
           </div>
           <div>
-            <h1 className="text-base font-black text-onyx leading-tight">CustomerPortal</h1>
-            <p className="text-[10px] text-slate-500 font-mono font-bold uppercase tracking-widest">DairyFlow.Admin / Scoped</p>
+            <h1 className="text-sm font-black text-onyx leading-tight">CustomerPortal</h1>
+            <p className="text-[9px] text-slate-500 font-mono font-bold uppercase tracking-widest leading-none">DairyFlow.Admin / Scoped</p>
           </div>
         </div>
 
         {/* Center Pill Tabs */}
-        <div className="flex bg-slate-100 p-1.5 rounded-2xl border border-slate-200/30">
-          <Link href="/" className="px-6 py-2 text-slate-500 hover:text-onyx transition-colors text-sm font-bold">Standard Dashboard</Link>
-          <Link href="/admin" className="px-6 py-2 bg-white text-onyx rounded-xl text-sm font-bold shadow-sm">Admin Terminal</Link>
+        <div className="flex bg-slate-100 p-1 rounded-xl border border-slate-200/30">
+          <Link href="/" className="px-4 py-1 text-slate-500 hover:text-onyx transition-colors text-xs font-bold">Standard Dashboard</Link>
+          <Link href="/admin" className="px-4 py-1 bg-white text-onyx rounded-lg text-xs font-bold shadow-sm">Admin Terminal</Link>
         </div>
 
         {/* Right Nav */}
-        <div className="flex items-center gap-6">
-          <Link href="/customers" className="text-slate-500 hover:text-onyx transition-colors flex items-center gap-2 text-sm font-medium">
-            <ArrowLeft className="w-4 h-4" />
+        <div className="flex items-center gap-4">
+          <Link href="/customers" className="text-slate-500 hover:text-onyx transition-colors flex items-center gap-1.5 text-xs font-medium">
+            <ArrowLeft className="w-3.5 h-3.5" />
             Exit to Directory
           </Link>
-          <div className="h-6 w-px bg-slate-200"></div>
-          <button className="text-red-600 hover:bg-red-50 px-4 py-2 rounded-md transition-colors flex items-center gap-2 text-sm font-medium border border-red-200/50">
-            <LogOut className="w-4 h-4" />
+          <div className="h-5 w-px bg-slate-200"></div>
+          <button className="text-red-600 hover:bg-red-50 px-3 py-1 rounded-md transition-colors flex items-center gap-1.5 text-xs font-medium border border-red-200/30">
+            <LogOut className="w-3.5 h-3.5" />
             Logout
           </button>
         </div>
@@ -191,7 +193,7 @@ export default async function CustomerAnalyticsPage(props: {
       <main className="flex-1 flex overflow-hidden">
 
         {/* Left Panel: Profile & Identity */}
-        <aside className="w-80 h-full overflow-y-auto no-scrollbar border-r border-slate-200 bg-white p-6 flex flex-col gap-6 shrink-0 relative z-10">
+        <aside className="w-80 h-full overflow-y-auto no-scrollbar border-r border-slate-200 bg-white p-4 flex flex-col gap-4 shrink-0 relative z-10">
 
           {/* Customer Name Header */}
           <div>
@@ -208,19 +210,20 @@ export default async function CustomerAnalyticsPage(props: {
             initialSellerId={String(profile.seller_id)}
             initialName={profile.name}
             initialContact={profile.contact || ''}
-            initialLocation={profile.location || ''}
+            initialLocationId={profile.location_id || ''}
+            locations={locations}
           />
 
           {/* Loan Information Panel */}
           {loanInfo && (
-            <div className="flex flex-col gap-4 animate-in fade-in duration-300">
-              <div className="flex items-center gap-2 mt-2">
+            <div className="flex flex-col gap-3 animate-in fade-in duration-300">
+              <div className="flex items-center gap-2 mt-0">
                 <Landmark className="w-5 h-5 text-indigo-600" />
                 <h3 className="text-lg font-bold text-onyx leading-none">Loan Information</h3>
               </div>
               
               {/* Loan Overview Card */}
-              <div className="bg-white border border-slate-200 rounded-2xl p-4 shadow-sm flex flex-col gap-2.5">
+              <div className="bg-white border border-slate-200 rounded-xl p-3 shadow-sm flex flex-col gap-1.5">
                 <div className="flex justify-between items-center">
                   <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">Status</span>
                   {loanInfo.status === 'ACTIVE' ? (
@@ -236,27 +239,22 @@ export default async function CustomerAnalyticsPage(props: {
                 <div className="h-px bg-slate-100 w-full my-0.5"></div>
                 <div className="flex justify-between items-center">
                   <span className="text-xs font-semibold text-slate-600">Outstanding</span>
-                  <span className="text-sm font-bold text-onyx">₹{currentCyclePayment ? Number(currentCyclePayment.principal_before).toFixed(2) : (payout ? (Number(payout.carried_forward_principal) + Number(payout.loan_principal_deducted)).toFixed(2) : loanInfo.outstanding_principal)}</span>
+                  <span className="text-sm font-bold text-onyx">₹{Number(loanInfo.outstanding_principal).toFixed(2)}</span>
                 </div>
                 <div className="flex justify-between items-center">
                   <span className="text-xs font-semibold text-slate-600">Forecast Interest</span>
-                  <span className="text-sm font-bold text-amber-600">₹{currentCyclePayment ? Number(currentCyclePayment.forecast_interest_charged).toFixed(2) : (payout ? (Number(payout.loan_interest_deducted) > 0 ? Number(payout.loan_interest_deducted) : ((Number(payout.carried_forward_principal) + Number(payout.loan_principal_deducted)) * Number(loanInfo.current_interest_rate) / 100)).toFixed(2) : loanInfo.forecasted_interest)}</span>
+                  <span className="text-sm font-bold text-amber-600">₹{Number(loanInfo.forecasted_interest).toFixed(2)}</span>
                 </div>
                 <div className="flex justify-between items-center pt-1 border-t border-slate-100">
                   <span className="text-xs font-bold text-slate-700">Total Debt</span>
                   <span className="text-sm font-black text-red-600">
-                    ₹{currentCyclePayment ? 
-                      (Number(currentCyclePayment.principal_before) + Number(currentCyclePayment.forecast_interest_charged)).toFixed(2) :
-                      (payout ? 
-                      ((Number(payout.carried_forward_principal) + Number(payout.loan_principal_deducted)) + 
-                      (Number(payout.loan_interest_deducted) > 0 ? Number(payout.loan_interest_deducted) : ((Number(payout.carried_forward_principal) + Number(payout.loan_principal_deducted)) * Number(loanInfo.current_interest_rate) / 100))).toFixed(2) 
-                      : (Number(loanInfo.outstanding_principal) + Number(loanInfo.forecasted_interest)).toFixed(2))}
+                    ₹{(Number(loanInfo.outstanding_principal) + Number(loanInfo.forecasted_interest)).toFixed(2)}
                   </span>
                 </div>
               </div>
 
               {/* Cycle Repayment Card */}
-              <div className="bg-white border border-slate-200 rounded-2xl p-4 shadow-sm flex flex-col gap-2.5">
+              <div className="bg-white border border-slate-200 rounded-xl p-3 shadow-sm flex flex-col gap-1.5">
                 <h4 className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">Cycle Repayment</h4>
                 {currentCyclePayment ? (
                   <>
@@ -293,11 +291,11 @@ export default async function CustomerAnalyticsPage(props: {
                       </div>
                     )}
                     
-                    {currentCyclePayment.source === 'CYCLE_EARNINGS_AND_CASH' && payout && (
+                    {currentCyclePayment.source === 'CYCLE_EARNINGS_AND_CASH' && (
                       <div className="flex justify-between items-center text-amber-700 bg-amber-50 p-1.5 -mx-1.5 rounded-md mt-1">
-                        <span className="text-[10px] font-bold uppercase tracking-wider">Manual Cash</span>
+                        <span className="text-[10px] font-bold uppercase tracking-wider">Cash Paid Extra</span>
                         <span className="text-xs font-bold">
-                          ₹{Math.max(0, (Number(currentCyclePayment.principal_paid) + Number(currentCyclePayment.interest_paid)) - Number(payout.total_earnings || 0))}
+                          ₹{Math.max(0, (Number(currentCyclePayment.principal_paid) + Number(currentCyclePayment.interest_paid)) - Number(currentCyclePayment.available_cycle_earnings || payout?.total_earnings || 0)).toFixed(0)}
                         </span>
                       </div>
                     )}
@@ -310,8 +308,8 @@ export default async function CustomerAnalyticsPage(props: {
               </div>
               
               {/* Repayment History (Scrollable) */}
-              <div className="bg-white border border-slate-200 rounded-2xl flex flex-col shadow-sm max-h-[250px] overflow-hidden">
-                <div className="p-3 border-b border-slate-100 bg-slate-50 shrink-0 flex items-center justify-between">
+              <div className="bg-white border border-slate-200 rounded-xl flex flex-col shadow-sm max-h-[160px] overflow-hidden">
+                <div className="p-2 border-b border-slate-100 bg-slate-50 shrink-0 flex items-center justify-between">
                   <h4 className="text-[10px] font-bold text-slate-600 uppercase tracking-wider flex items-center gap-1.5">
                     <History className="w-3.5 h-3.5" /> History
                   </h4>
@@ -331,7 +329,7 @@ export default async function CustomerAnalyticsPage(props: {
                         </div>
                         <div className="mt-1.5 flex justify-between items-center text-[10px]">
                           <span className="text-slate-400">Src: {p.source.replace(/_/g, ' ')}</span>
-                          <span className="text-slate-500 font-semibold">Left: ₹{p.principal_after !== undefined && p.principal_after !== null ? p.principal_after : '-'}</span>
+                          <span className="text-slate-500 font-semibold">Left: ₹{p.principal_remaining !== undefined && p.principal_remaining !== null ? p.principal_remaining : '-'}</span>
                         </div>
                       </div>
                     ))
@@ -346,13 +344,14 @@ export default async function CustomerAnalyticsPage(props: {
 
         {/* Right Content Area: Transactions */}
         <section className="flex-1 bg-slate-50 flex flex-col relative overflow-hidden min-h-0">
-          <div className="flex-1 p-6 flex flex-col gap-6 overflow-hidden min-h-0">
+          <div className="flex-1 px-6 py-3 flex flex-col gap-3 overflow-hidden min-h-0">
 
             {!hideTable && (
               <TransactionViewModeWrapper
+                compact={true}
                 topSection={
                   <Suspense key="top-section" fallback={
-                    <div className="bg-white p-4 rounded-3xl border border-slate-200 w-full flex items-center justify-center animate-pulse min-h-[100px]">
+                    <div className="bg-white p-3 rounded-2xl border border-slate-200 w-full flex items-center justify-center animate-pulse min-h-[80px]">
                       <Loader2 className="w-5 h-5 text-blue-500 animate-spin mr-2" />
                       <span className="text-sm font-bold text-slate-400">Loading Filters...</span>
                     </div>
@@ -381,55 +380,51 @@ export default async function CustomerAnalyticsPage(props: {
                   </Suspense>
                 }
                 bottomSection={
-                  <div key="bottom-section" className="grid grid-cols-1 md:grid-cols-4 gap-4 shrink-0 w-full">
-                    <div className="bg-white/80 backdrop-blur-2xl border border-white/40 rounded-xl p-4 flex flex-col justify-between shadow-sm relative overflow-hidden group">
-                      <div className="text-sm font-semibold text-slate-500 z-10">Total Milk Bought</div>
-                      <div className="flex items-baseline gap-1 mt-2 z-10">
-                        <span className="text-3xl font-bold text-onyx tracking-tight">{totalVol.toFixed(1)}</span>
-                        <span className="text-lg font-bold text-slate-500">L</span>
-                      </div>
-                      <div className="absolute -right-4 -bottom-4 opacity-[0.03] z-0 transition-transform group-hover:scale-110">
-                        <Database className="w-32 h-32" />
+                  <div key="bottom-section" className="grid grid-cols-1 md:grid-cols-4 gap-2 shrink-0 w-full">
+                    <div className="bg-white/80 backdrop-blur-2xl border border-white/40 rounded-lg px-3 py-1.5 flex items-center justify-between shadow-sm relative overflow-hidden group">
+                      <div className="text-xs font-semibold text-slate-500 z-10">Total Milk Bought</div>
+                      <div className="flex items-baseline gap-0.5 z-10">
+                        <span className="text-lg font-bold text-onyx tracking-tight">{totalVol.toFixed(1)}</span>
+                        <span className="text-xs font-bold text-slate-500">L</span>
                       </div>
                     </div>
 
-                    <div className="bg-white/80 backdrop-blur-2xl border border-white/40 rounded-xl p-4 flex flex-col justify-between shadow-sm relative overflow-hidden group">
-                      <div className="text-sm font-semibold text-slate-500 z-10">Capital Deployed</div>
-                      <div className="flex items-baseline gap-1 mt-2 z-10">
-                        <span className="text-3xl font-bold text-emerald-600 tracking-tight">₹{totalPrice.toFixed(2)}</span>
-                      </div>
-                      <div className="absolute -right-4 -bottom-4 opacity-[0.03] z-0 transition-transform group-hover:scale-110">
-                        <Database className="w-32 h-32" />
+                    <div className="bg-white/80 backdrop-blur-2xl border border-white/40 rounded-lg px-3 py-1.5 flex items-center justify-between shadow-sm relative overflow-hidden group">
+                      <div className="text-xs font-semibold text-slate-500 z-10">Capital Deployed</div>
+                      <div className="flex items-baseline gap-0.5 z-10">
+                        <span className="text-lg font-bold text-emerald-600 tracking-tight">₹{totalPrice.toFixed(2)}</span>
                       </div>
                     </div>
 
-                    <div className="bg-white/80 backdrop-blur-2xl border border-white/40 rounded-xl p-4 flex flex-col justify-between shadow-sm relative overflow-hidden group">
-                      <div className="flex items-center gap-1.5 text-sm font-semibold text-amber-500 z-10 uppercase tracking-wide">
-                        <Sun className="w-4 h-4" />
+                    <div className="bg-white/80 backdrop-blur-2xl border border-white/40 rounded-lg px-3 py-1.5 flex items-center justify-between shadow-sm relative overflow-hidden group">
+                      <div className="flex items-center gap-1 text-xs font-semibold text-amber-500 z-10 uppercase tracking-wide">
+                        <Sun className="w-3.5 h-3.5" />
                         AM
                       </div>
-                      <div className="flex items-end justify-between mt-2 z-10">
-                        <div className="flex items-baseline gap-1">
-                          <span className="text-3xl font-bold text-onyx tracking-tight">{amVol.toFixed(1)}</span>
-                          <span className="text-lg font-bold text-slate-500">L</span>
+                      <div className="flex items-baseline gap-2 z-10">
+                        <div className="flex items-baseline gap-0.5">
+                          <span className="text-lg font-bold text-onyx tracking-tight">{amVol.toFixed(1)}</span>
+                          <span className="text-xs font-bold text-slate-500">L</span>
                         </div>
-                        <div className="text-sm font-bold text-emerald-600 mb-1">
+                        <span className="text-slate-300 text-xs">|</span>
+                        <div className="text-xs font-bold text-emerald-600">
                           ₹{amPrice.toFixed(0)}
                         </div>
                       </div>
                     </div>
 
-                    <div className="bg-white/80 backdrop-blur-2xl border border-white/40 rounded-xl p-4 flex flex-col justify-between shadow-sm relative overflow-hidden group">
-                      <div className="flex items-center gap-1.5 text-sm font-semibold text-indigo-500 z-10 uppercase tracking-wide">
-                        <Moon className="w-4 h-4" />
+                    <div className="bg-white/80 backdrop-blur-2xl border border-white/40 rounded-lg px-3 py-1.5 flex items-center justify-between shadow-sm relative overflow-hidden group">
+                      <div className="flex items-center gap-1 text-xs font-semibold text-indigo-500 z-10 uppercase tracking-wide">
+                        <Moon className="w-3.5 h-3.5" />
                         PM
                       </div>
-                      <div className="flex items-end justify-between mt-2 z-10">
-                        <div className="flex items-baseline gap-1">
-                          <span className="text-3xl font-bold text-onyx tracking-tight">{pmVol.toFixed(1)}</span>
-                          <span className="text-lg font-bold text-slate-500">L</span>
+                      <div className="flex items-baseline gap-2 z-10">
+                        <div className="flex items-baseline gap-0.5">
+                          <span className="text-lg font-bold text-onyx tracking-tight">{pmVol.toFixed(1)}</span>
+                          <span className="text-xs font-bold text-slate-500">L</span>
                         </div>
-                        <div className="text-sm font-bold text-emerald-600 mb-1">
+                        <span className="text-slate-300 text-xs">|</span>
+                        <div className="text-xs font-bold text-emerald-600">
                           ₹{pmPrice.toFixed(0)}
                         </div>
                       </div>
@@ -437,13 +432,13 @@ export default async function CustomerAnalyticsPage(props: {
                   </div>
                 }
                 headerLeft={
-                  <div key="header-left" className="flex items-center gap-3">
-                    <div className="p-2 bg-sky-100 text-sky-700 rounded-lg">
-                      <Database className="w-5 h-5" />
+                  <div key="header-left" className="flex items-center gap-2">
+                    <div className="p-1.5 bg-sky-100 text-sky-700 rounded-md">
+                      <Database className="w-4 h-4" />
                     </div>
                     <div>
-                      <h2 className="text-lg font-bold text-onyx leading-tight">Transaction Archive</h2>
-                      <p className="text-sm font-medium text-slate-500">{txData.count} entries found for {profile.name}</p>
+                      <h2 className="text-sm font-bold text-onyx leading-tight">Transaction Archive</h2>
+                      <p className="text-[11px] font-medium text-slate-500">{txData.count} entries found for {profile.name}</p>
                     </div>
                   </div>
                 }
@@ -453,19 +448,19 @@ export default async function CustomerAnalyticsPage(props: {
                     <div className="relative flex-1 flex flex-col min-h-0 overflow-hidden">
                       <div className="flex-1 min-h-0 overflow-y-auto overflow-x-auto custom-scrollbar">
                         <table className="w-full text-left border-collapse min-w-[800px]">
-                          <thead className="sticky top-0 z-10 bg-white/95 backdrop-blur-sm border-b border-slate-200 text-slate-500 font-semibold uppercase text-xs tracking-wider">
+                          <thead className="sticky top-0 z-10 bg-white/95 backdrop-blur-sm border-b border-slate-200 text-slate-500 font-semibold uppercase text-[10px] tracking-wider">
                             <tr>
-                              <th className="px-4 py-4 w-10 text-center"><MultiSelectHeader /></th>
-                              {!hiddenCols.includes('col_sno') && <th className="px-4 py-4 border-b border-slate-200 text-center">S.No</th>}
-                              {!hiddenCols.includes('col_tx_id') && <th className="px-6 py-4 border-b border-slate-200">Tx ID</th>}
-                              {!hiddenCols.includes('col_date') && <th className="px-6 py-4 border-b border-slate-200">Date & Shift</th>}
-                              {!hiddenCols.includes('col_seller') && <th className="px-6 py-4 border-b border-slate-200">Seller Entity</th>}
-                              {!hiddenCols.includes('col_type') && <th className="px-6 py-4 border-b border-slate-200">Commodity</th>}
-                              {!hiddenCols.includes('col_volume') && <th className="px-6 py-4 border-b border-slate-200 text-right">Volume</th>}
-                              {!hiddenCols.includes('col_rate') && <th className="px-6 py-4 border-b border-slate-200 text-right">Rate</th>}
-                              {!hiddenCols.includes('col_capital') && <th className="px-6 py-4 border-b border-slate-200 text-right">Capital Out</th>}
-                              {!hiddenCols.includes('col_audit') && <th className="px-6 py-4 border-b border-slate-200 text-left">Audit Footprint</th>}
-                              <th className="px-4 py-4 border-b border-slate-200 text-right">Actions</th>
+                              <th className="px-4 py-2 text-center"><MultiSelectHeader /></th>
+                              {!hiddenCols.includes('col_sno') && <th className="px-4 py-2 border-b border-slate-200 text-center">S.No</th>}
+                              {!hiddenCols.includes('col_tx_id') && <th className="px-4 py-2 border-b border-slate-200">Tx ID</th>}
+                              {!hiddenCols.includes('col_date') && <th className="px-4 py-2 border-b border-slate-200">Date & Shift</th>}
+                              {!hiddenCols.includes('col_seller') && <th className="px-4 py-2 border-b border-slate-200">Seller Entity</th>}
+                              {!hiddenCols.includes('col_type') && <th className="px-4 py-2 border-b border-slate-200">Commodity</th>}
+                              {!hiddenCols.includes('col_volume') && <th className="px-4 py-2 border-b border-slate-200 text-right">Volume</th>}
+                              {!hiddenCols.includes('col_rate') && <th className="px-4 py-2 border-b border-slate-200 text-right">Rate</th>}
+                              {!hiddenCols.includes('col_capital') && <th className="px-4 py-2 border-b border-slate-200 text-right">Capital Out</th>}
+                              {!hiddenCols.includes('col_audit') && <th className="px-4 py-2 border-b border-slate-200 text-left">Audit Footprint</th>}
+                              <th className="px-4 py-2 border-b border-slate-200 text-right">Actions</th>
                             </tr>
                           </thead>
                           <tbody className="divide-y divide-slate-200/50 bg-white/40">
@@ -477,21 +472,21 @@ export default async function CustomerAnalyticsPage(props: {
                               </tr>
                             ) : txData.data.map((tx, idx) => (
                               <tr key={tx.id} className="hover:bg-slate-50/80 transition-colors group">
-                                <td className="px-4 py-4 text-center align-middle">
+                                <td className="px-4 py-2.5 text-center align-middle">
                                   <MultiSelectCheckbox id={tx.id} />
                                 </td>
                                 {!hiddenCols.includes('col_sno') && (
-                                  <td className="px-4 py-4 text-center text-slate-400 font-mono text-xs">
+                                  <td className="px-4 py-2.5 text-center text-slate-400 font-mono text-xs">
                                     {offset + idx + 1}
                                   </td>
                                 )}
                                 {!hiddenCols.includes('col_tx_id') && (
-                                  <td className="px-6 py-4">
+                                  <td className="px-6 py-2.5">
                                     <span className="font-mono text-slate-400 text-xs">{tx.id.split('-')[0]}</span>
                                   </td>
                                 )}
                                 {!hiddenCols.includes('col_date') && (
-                                  <td className="px-6 py-4">
+                                  <td className="px-6 py-2.5">
                                     <div className="font-bold text-slate-800">
                                       {(() => {
                                         const [yy, mm, dd] = tx.transaction_date.split('-')
@@ -505,41 +500,43 @@ export default async function CustomerAnalyticsPage(props: {
                                   </td>
                                 )}
                                 {!hiddenCols.includes('col_seller') && (
-                                  <td className="px-6 py-4">
-                                    <div className="flex items-center gap-2">
-                                      <span className="text-[10px] font-mono bg-blue-50 text-blue-600 px-1.5 py-0.5 rounded border border-blue-100">
-                                        #{String(tx.customers?.seller_id || 0).padStart(3, '0')}
+                                  <td className="px-6 py-2.5 whitespace-nowrap">
+                                    <div className="flex items-center gap-3">
+                                      <div className="w-auto px-2 h-8 rounded bg-slate-100 border border-slate-200/50 flex items-center justify-center text-[10px] font-mono font-bold tracking-widest text-slate-500">
+                                        [{tx.customers?.location ? tx.customers.location.substring(0, 3).toUpperCase() : 'UNK'}] #{tx.customers?.seller_id}
+                                      </div>
+                                      <span className="font-bold text-slate-700">
+                                        {tx.customers?.name || `Seller ${String(tx.customers?.seller_id || '')}`}
                                       </span>
-                                      <span className="font-bold text-slate-700">{tx.customers?.name || `${String(tx.customers?.seller_id).padStart(3, '0')} Seller`}</span>
                                     </div>
                                   </td>
                                 )}
                                 {!hiddenCols.includes('col_type') && (
-                                  <td className="px-6 py-4">
+                                  <td className="px-6 py-2.5">
                                     <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-bold border ${tx.milk_type === 'Cow' ? 'bg-amber-50 text-amber-700 border-amber-200' : 'bg-slate-100 text-slate-700 border-slate-200'}`}>
                                       {tx.milk_type === 'Cow' ? '🐄 Cow' : '🐃 Buffalo'}
                                     </span>
                                   </td>
                                 )}
                                 {!hiddenCols.includes('col_volume') && (
-                                  <td className="px-6 py-4 text-right">
+                                  <td className="px-6 py-2.5 text-right">
                                     <div className="font-black text-slate-800">{Number(tx.quantity_litres).toFixed(1)}L</div>
                                     <div className="text-[10px] font-bold text-slate-400 mt-0.5">{Number(tx.fat_percentage).toFixed(1)}% FAT</div>
                                   </td>
                                 )}
                                 {!hiddenCols.includes('col_rate') && (
-                                  <td className="px-6 py-4 text-right align-top">
+                                  <td className="px-6 py-2.5 text-right align-top">
                                     <div className="font-bold text-slate-700">₹{Number(tx.price_per_litre).toFixed(2)}</div>
                                     <div className="text-[10px] font-bold text-slate-400 mt-0.5">/ Ltr</div>
                                   </td>
                                 )}
                                 {!hiddenCols.includes('col_capital') && (
-                                  <td className="px-6 py-4 text-right align-top">
+                                  <td className="px-6 py-2.5 text-right align-top">
                                     <div className="font-black text-emerald-600">₹{Number(tx.net_payable ?? tx.total_price).toFixed(2)}</div>
                                   </td>
                                 )}
                                 {!hiddenCols.includes('col_audit') && (
-                                  <td className="px-6 py-4">
+                                  <td className="px-6 py-2.5">
                                     <div className="text-[11px] text-slate-500 leading-tight font-medium">
                                       C: {tx.created_by_name || 'Admin'} ({new Date(tx.created_at).toLocaleString([], { dateStyle: 'short', timeStyle: 'short' })})
                                       {tx.updated_at && (
@@ -548,7 +545,7 @@ export default async function CustomerAnalyticsPage(props: {
                                     </div>
                                   </td>
                                 )}
-                                <td className="px-4 py-4 text-right">
+                                <td className="px-4 py-2.5 text-right">
                                   <TransactionActionCell tx={tx} />
                                 </td>
                               </tr>

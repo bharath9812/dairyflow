@@ -18,6 +18,8 @@ export async function createEmployee(formData: FormData) {
   const name = formData.get('name') as string
   const email = formData.get('email') as string
   const password = formData.get('password') as string
+  const locationAll = formData.get('location_all') === 'true'
+  const locationIds = formData.getAll('location_ids') as string[]
 
   if (!name || !email || !password) {
     redirect('/admin/employees?error=All parameters are required.')
@@ -35,7 +37,11 @@ export async function createEmployee(formData: FormData) {
   const { data, error } = await adminAuth.createUser({
     email,
     password,
-    user_metadata: { name, role: 'secondary' },
+    user_metadata: { 
+      name, 
+      role: 'secondary',
+      allowed_locations: locationAll ? 'ALL' : locationIds
+    },
     email_confirm: true // bypass confirmation for superusers making employees
   })
 
@@ -45,6 +51,33 @@ export async function createEmployee(formData: FormData) {
 
   revalidatePath('/admin/employees', 'page')
   redirect(`/admin/employees?message=${encodeURIComponent('Secondary Admin generated securely!')}`)
+}
+
+export async function updateEmployeeLocations(formData: FormData) {
+  const uid = formData.get('uid') as string
+  const locationAll = formData.get('location_all') === 'true'
+  const locationIds = formData.getAll('location_ids') as string[]
+
+  const ssrClient = await createSSRClient()
+  const { data: { user } } = await ssrClient.auth.getUser()
+
+  if (!user || user.user_metadata?.role !== 'primary') {
+    redirect('/admin')
+  }
+
+  const adminAuth = getAdminClient().auth.admin
+  const { data, error } = await adminAuth.updateUserById(uid, {
+    user_metadata: {
+      allowed_locations: locationAll ? 'ALL' : locationIds
+    }
+  })
+
+  if (error) {
+    redirect(`/admin/employees?error=${encodeURIComponent(error.message)}`)
+  }
+
+  revalidatePath('/admin/employees', 'page')
+  redirect(`/admin/employees?message=${encodeURIComponent('Location access updated successfully!')}`)
 }
 
 export async function deleteEmployee(formData: FormData) {

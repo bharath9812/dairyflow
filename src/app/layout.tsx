@@ -23,6 +23,8 @@ export const metadata: Metadata = {
 
 import MobileBlocker from "@/components/MobileBlocker";
 
+import { GlobalToaster } from "@/components/GlobalToaster";
+
 export default function RootLayout({
   children,
 }: Readonly<{
@@ -38,6 +40,7 @@ export default function RootLayout({
       </head>
       <body className="min-h-full flex flex-col font-sans bg-surface text-on-surface">
         <MobileBlocker />
+        <GlobalToaster />
         <TransactionViewModeProvider>
           <SidebarProvider>
             {children}
