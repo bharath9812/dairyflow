@@ -24,7 +24,11 @@ export default async function AdminLayout({ children }: { children: React.ReactN
           onLogout={async () => { 
             'use server';
             const s = await createClient();
-            await s.auth.signOut();
+            try {
+              await s.auth.signOut();
+            } catch (e) {
+              console.error("Signout error in admin layout:", e);
+            }
             redirect('/login');
           }}
         />

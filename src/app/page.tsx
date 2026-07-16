@@ -25,6 +25,7 @@ export default function TransactionDashboard() {
   const [customersList, setCustomersList] = useState<{ id: string, seller_id: number, name: string, location: string, contact: string }[]>([])
   const [customerSearch, setCustomerSearch] = useState('')
   const [selectedLocations, setSelectedLocations] = useState<string[]>([])
+  const [isLocationMenuOpen, setIsLocationMenuOpen] = useState(false)
   const [customerId, setCustomerId] = useState('')
   const [isDropdownOpen, setIsDropdownOpen] = useState(false)
   const [activeSearchIndex, setActiveSearchIndex] = useState(-1)
@@ -38,10 +39,23 @@ export default function TransactionDashboard() {
   const [fetchLimit, setFetchLimit] = useState(20)
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [sessionUser, setSessionUser] = useState<{ id: string, email?: string, name?: string } | null>(null)
+  const [recentTxViewMode, setRecentTxViewMode] = useState<'split' | 'unified'>('split')
+
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      const saved = localStorage.getItem('recentTxViewMode') as 'split' | 'unified' | null
+      if (saved && (saved === 'split' || saved === 'unified')) {
+        setRecentTxViewMode(saved)
+      }
+    }
+  }, [])
 
   const itemsPerPage = 10
   const totalPages = Math.ceil(transactionsList.length / itemsPerPage) || 1
   const paginatedTx = transactionsList.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage)
+
+  const amTransactions = transactionsList.filter(tx => tx.shift === 'AM')
+  const pmTransactions = transactionsList.filter(tx => tx.shift === 'PM')
 
   const filteredCustomers = customersList.filter(c => {
     const locMatch = selectedLocations.length === 0 || selectedLocations.includes(c.location || 'Unknown Location')
@@ -61,28 +75,47 @@ export default function TransactionDashboard() {
   const uniqueLocations = Array.from(new Set(customersList.map(c => c.location || 'Unknown Location'))).sort()
 
   const fetchTransactions = async () => {
-    const { data } = await supabase
-      .from('transactions')
-      .select('*, customers(seller_id, name, location)')
-      .order('created_at', { ascending: false })
-      .limit(fetchLimit)
-    if (data) setTransactionsList(data)
+    try {
+      const { data, error } = await supabase
+        .from('transactions')
+        .select('*, customers(seller_id, name, location)')
+        .order('created_at', { ascending: false })
+        .limit(fetchLimit)
+      if (error) throw error
+      if (data) setTransactionsList(data)
+    } catch (err) {
+      console.error("Error fetching transactions:", err)
+    }
   }
 
   useEffect(() => {
     async function fetchData() {
-      const [custRes, pricingRes, userRes] = await Promise.all([
-        supabase.from('customers').select('id, seller_id, name, location, contact').eq('is_active', true).order('seller_id', { ascending: true }),
-        supabase.from('global_pricing').select('*').limit(1).single(),
-        supabase.auth.getUser()
-      ])
-      if (custRes.data) setCustomersList(custRes.data)
-      if (pricingRes.data) setGlobalPricing(pricingRes.data)
+      try {
+        const [custRes, pricingRes, userRes] = await Promise.all([
+          supabase.from('customers').select('id, seller_id, name, location, contact').eq('is_active', true).order('seller_id', { ascending: true }),
+          supabase.from('global_pricing').select('*').limit(1).single(),
+          supabase.auth.getUser()
+        ])
+        
+        if (custRes.error) throw custRes.error
+        if (pricingRes.error && pricingRes.error.code !== 'PGRST116') throw pricingRes.error
+        if (userRes.error) throw userRes.error
 
-      const user = userRes.data?.user
-      if (user) {
-        const metaName = user.user_metadata?.full_name || user.user_metadata?.name || user.email?.split('@')[0]
-        setSessionUser({ id: user.id, email: user.email, name: metaName })
+        if (custRes.data) setCustomersList(custRes.data)
+        if (pricingRes.data) setGlobalPricing(pricingRes.data)
+
+        const user = userRes.data?.user
+        if (user) {
+          const metaName = user.user_metadata?.full_name || user.user_metadata?.name || user.email?.split('@')[0]
+          setSessionUser({ id: user.id, email: user.email, name: metaName })
+        } else {
+          router.push('/login')
+        }
+      } catch (err: any) {
+        console.error("Error loading dashboard data:", err)
+        if (err.status === 401 || err.message?.includes('JWT') || err.message?.includes('token')) {
+          router.push('/login')
+        }
       }
     }
     fetchData()
@@ -144,7 +177,22 @@ export default function TransactionDashboard() {
       <div className="flex flex-1 h-[100dvh] overflow-hidden">
         {/* Persistent Sidebar (Desktop) */}
         <Sidebar
-          onLogout={async () => { await supabase.auth.signOut(); router.push('/login'); }}
+          onLogout={async () => {
+            try {
+              await supabase.auth.signOut()
+            } catch (e) {
+              console.error("Signout error:", e)
+            }
+            if (typeof window !== 'undefined') {
+              for (let i = 0; i < localStorage.length; i++) {
+                const key = localStorage.key(i)
+                if (key && (key.startsWith('sb-') || key.includes('supabase'))) {
+                  localStorage.removeItem(key)
+                }
+              }
+            }
+            router.push('/login')
+          }}
         />
 
         <div className="flex-1 flex flex-col h-full overflow-hidden relative">
@@ -181,31 +229,37 @@ export default function TransactionDashboard() {
                           Seller / Customer Name
                         </label>
                         <div className="relative flex gap-2 items-center">
-                          <div className="relative group shrink-0">
-                            <button type="button" className="flex items-center gap-2 bg-slate-100 border border-slate-200/50 rounded-lg px-3 py-2.5 text-xs font-bold text-slate-500 hover:border-slate-300 transition-all">
+                          <div className="relative shrink-0 z-50">
+                            <button type="button" onClick={() => setIsLocationMenuOpen(!isLocationMenuOpen)} className="flex items-center gap-2 bg-slate-100 border border-slate-200/50 rounded-lg px-3 py-2.5 text-xs font-bold text-slate-500 hover:border-slate-300 transition-all">
                               <Filter className="w-3.5 h-3.5" />
                               {selectedLocations.length === 0 ? 'All Books' : `${selectedLocations.length} Books`}
                             </button>
-                            <div className="absolute left-0 top-full mt-2 w-56 bg-white border border-slate-200 rounded-xl shadow-xl shadow-slate-200/50 opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all z-[60] p-2 flex flex-col gap-1 max-h-60 overflow-y-auto custom-scrollbar">
-                              <label className="flex items-center gap-3 px-3 py-2 hover:bg-slate-50 rounded-lg cursor-pointer transition-colors">
-                                <input type="checkbox" checked={selectedLocations.length === 0} onChange={() => setSelectedLocations([])} className="rounded text-sky-500 focus:ring-sky-500 w-4 h-4" />
-                                <span className="text-sm font-bold text-slate-700">All Locations</span>
-                              </label>
-                              <div className="h-px bg-slate-100 my-1 mx-2"></div>
-                              {uniqueLocations.map(loc => (
-                                <label key={loc} className="flex items-center gap-3 px-3 py-2 hover:bg-slate-50 rounded-lg cursor-pointer transition-colors">
-                                  <input type="checkbox" 
-                                    checked={selectedLocations.includes(loc)} 
-                                    onChange={(e) => {
-                                      if (e.target.checked) setSelectedLocations([...selectedLocations, loc])
-                                      else setSelectedLocations(selectedLocations.filter(l => l !== loc))
-                                    }} 
-                                    className="rounded text-sky-500 focus:ring-sky-500 w-4 h-4" 
-                                  />
-                                  <span className="text-sm font-bold text-slate-600 truncate">{loc}</span>
-                                </label>
-                              ))}
-                            </div>
+                            {isLocationMenuOpen && (
+                              <>
+                                <div className="fixed inset-0 z-[50]" onClick={() => setIsLocationMenuOpen(false)}></div>
+                                <div className="absolute left-0 top-full mt-2 w-56 bg-white border border-slate-200 rounded-xl shadow-xl shadow-slate-200/50 transition-all z-[60] p-2 flex flex-col gap-1 max-h-60 overflow-y-auto custom-scrollbar">
+                                  <label className="flex items-center gap-3 px-3 py-2 hover:bg-slate-50 rounded-lg cursor-pointer transition-colors">
+                                    <input type="checkbox" checked={selectedLocations.length === 0} onChange={() => setSelectedLocations([])} className="rounded text-sky-500 focus:ring-sky-500 w-4 h-4" />
+                                    <span className="text-sm font-bold text-slate-700">All Books</span>
+                                  </label>
+                                  <div className="h-px bg-slate-100 my-1 mx-2"></div>
+
+                                  {uniqueLocations.map(loc => (
+                                    <label key={loc} className="flex items-center gap-3 px-3 py-2 hover:bg-slate-50 rounded-lg cursor-pointer transition-colors">
+                                      <input type="checkbox" 
+                                        checked={selectedLocations.includes(loc)} 
+                                        onChange={(e) => {
+                                          if (e.target.checked) setSelectedLocations([...selectedLocations, loc])
+                                          else setSelectedLocations(selectedLocations.filter(l => l !== loc))
+                                        }} 
+                                        className="rounded text-sky-500 focus:ring-sky-500 w-4 h-4" 
+                                      />
+                                      <span className="text-sm font-bold text-slate-600 truncate">{loc}</span>
+                                    </label>
+                                  ))}
+                                </div>
+                              </>
+                            )}
                           </div>
 
                           <input
@@ -436,6 +490,29 @@ export default function TransactionDashboard() {
                       <ChevronDown className="w-3.5 h-3.5 text-sky-accent absolute right-0 pointer-events-none" />
                     </div>
 
+                    <span className="w-px h-3 bg-slate-200 mx-1"></span>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const nextMode = recentTxViewMode === 'split' ? 'unified' : 'split'
+                        setRecentTxViewMode(nextMode)
+                        localStorage.setItem('recentTxViewMode', nextMode)
+                      }}
+                      className="flex items-center gap-1.5 px-2 py-0.5 text-[10px] font-bold text-slate-600 hover:text-onyx bg-slate-100 hover:bg-slate-200 rounded-full transition-colors border border-slate-200/50"
+                    >
+                      {recentTxViewMode === 'split' ? (
+                        <>
+                          <BookText className="w-3 h-3 text-slate-500" />
+                          <span>List View</span>
+                        </>
+                      ) : (
+                        <>
+                          <BarChart3 className="w-3 h-3 text-slate-500" />
+                          <span>Split View</span>
+                        </>
+                      )}
+                    </button>
+
                     <button
                       onClick={toggleMode}
                       className="ml-1.5 p-1 text-slate-400 hover:text-slate-600 hover:bg-slate-100 rounded transition-colors"
@@ -447,100 +524,203 @@ export default function TransactionDashboard() {
 
                 <div className="flex flex-col flex-1 min-h-0 overflow-hidden relative z-20">
 
-                  {/* Table Header */}
-                  <div className="grid grid-cols-[3rem_4rem_1fr_1fr_8rem_4rem] gap-2 px-4 py-2 border-b border-slate-200 bg-white/95 backdrop-blur-sm text-[10px] font-bold text-slate-500 uppercase tracking-widest font-mono shrink-0 min-w-[600px] sticky top-0 z-10">
-                    <div className="text-center">S.No</div>
-                    <div>Time</div>
-                    <div>Seller Name</div>
-                    <div>Data</div>
-                    <div className="text-right pr-4">Total (₹)</div>
-                    <div></div>
-                  </div>
-
-                  {/* Table Body */}
-                  <div className="flex-1 min-h-0 overflow-y-auto overflow-x-auto custom-scrollbar">
-                    <div className="flex flex-col divide-y divide-slate-100 min-w-[600px] min-h-min">
-                      {paginatedTx.length === 0 ? (
-                        <div className="px-6 py-12 text-center text-slate-400 font-medium">No transactions recorded yet today.</div>
-                      ) : paginatedTx.map((tx, index) => (
-                        <div key={tx.id} className="grid grid-cols-[3rem_4rem_1fr_1fr_8rem_4rem] gap-2 px-4 py-2.5 items-start hover:bg-slate-50/80 transition-colors">
-
-                          <div className="text-center text-sm text-slate-400 font-mono pt-1">
-                            {(currentPage - 1) * itemsPerPage + index + 1}
-                          </div>
-
-                          <div className="text-sm font-mono text-slate-500 pt-1">
-                            {new Date(tx.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-                          </div>
-
-                          <div className="flex items-center gap-2 pt-1">
-                            <div className="w-auto px-2 h-7 rounded bg-slate-100 border border-slate-200/50 flex items-center justify-center text-[10px] font-mono font-bold tracking-widest text-slate-500">
-                              [{tx.customers?.location ? tx.customers.location.substring(0, 3).toUpperCase() : 'UNK'}] #{tx.customers?.seller_id}
-                            </div>
-                            <span className="font-medium text-sm text-onyx">
-                              {tx.customers?.name ? tx.customers.name : 'Seller'}
-                            </span>
-                          </div>
-
-                          <div className="flex flex-col pt-1">
-                            <div className="text-sm font-bold text-onyx">
-                              <span className="font-mono">{Number(tx.quantity_litres)}L</span>
-                              <span className="text-slate-300 mx-1">|</span>
-                              <span className="font-mono">{Number(tx.fat_percentage)}%</span>
-                            </div>
-                            <div className="text-[10px] text-slate-500 flex items-center gap-1 font-medium mt-0.5">
-                              {tx.milk_type === 'Cow' ? 'Cow' : 'Buffalo'} • {tx.shift}
-                            </div>
-                          </div>
-
-                          <div className="flex flex-col items-end pt-1 gap-1">
-                            <div className="font-mono font-bold text-[15px] text-onyx">
-                              ₹{Number(tx.net_payable ?? tx.total_price).toFixed(2)}
-                            </div>
-                            <div className="text-[10px] text-slate-400 font-medium font-mono">
-                              @ ₹{Number(tx.price_per_litre).toFixed(2)}/L
-                            </div>
-                          </div>
-
-                          <div className="flex items-center justify-end pt-1">
-                            <TransactionActionCell tx={tx} onUpdate={fetchTransactions} />
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-
-                  {/* Pagination Banner */}
-                  <div className="border-t border-slate-200 p-3 flex justify-between items-center bg-white/95 backdrop-blur-sm shrink-0 sticky bottom-0 z-10">
-                    <span className="text-xs font-semibold text-slate-500">
-                      {transactionsList.length > 0
-                        ? `Showing ${(currentPage - 1) * itemsPerPage + 1}-${Math.min(currentPage * itemsPerPage, transactionsList.length)} of ${transactionsList.length}`
-                        : '0 logs'
-                      }
-                    </span>
-                    <div className="flex items-center gap-1.5">
-                      <button
-                        disabled={currentPage === 1}
-                        onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
-                        className="p-1.5 rounded-md border border-slate-200 text-slate-500 hover:text-blue-600 hover:bg-blue-50 disabled:opacity-40 transition-colors cursor-pointer">
-                        <ChevronLeft className="w-4 h-4" />
-                      </button>
-                      <div className="text-xs font-medium text-slate-600 px-2">
-                        {currentPage} <span className="text-slate-300 mx-0.5">/</span> {totalPages}
+                  {recentTxViewMode === 'unified' ? (
+                    <>
+                      {/* Table Header */}
+                      <div className="grid grid-cols-[3rem_5.5rem_1fr_1fr_8rem_4rem] gap-2 px-4 py-2 border-b border-slate-200 bg-white/95 backdrop-blur-sm text-[10px] font-bold text-slate-500 uppercase tracking-widest font-mono shrink-0 min-w-[600px] sticky top-0 z-10">
+                        <div className="text-center">S.No</div>
+                        <div>Date & Time</div>
+                        <div>Seller Name</div>
+                        <div>Data</div>
+                        <div className="text-right pr-4">Total (₹)</div>
+                        <div></div>
                       </div>
-                      <button
-                        disabled={currentPage === totalPages}
-                        onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
-                        className="p-1.5 rounded-md border border-slate-200 text-slate-500 hover:text-blue-600 hover:bg-blue-50 disabled:opacity-40 transition-colors cursor-pointer">
-                        <ChevronRight className="w-4 h-4" />
-                      </button>
+
+                      {/* Table Body */}
+                      <div className="flex-1 min-h-0 overflow-y-auto overflow-x-auto custom-scrollbar">
+                        <div className="flex flex-col divide-y divide-slate-100 min-w-[600px] min-h-min">
+                          {paginatedTx.length === 0 ? (
+                            <div className="px-6 py-12 text-center text-slate-400 font-medium">No transactions recorded yet today.</div>
+                          ) : paginatedTx.map((tx, index) => (
+                            <div key={tx.id} className="grid grid-cols-[3rem_5.5rem_1fr_1fr_8rem_4rem] gap-2 px-4 py-2.5 items-start hover:bg-slate-50/80 transition-colors">
+
+                              <div className="text-center text-sm text-slate-400 font-mono pt-1">
+                                {(currentPage - 1) * itemsPerPage + index + 1}
+                              </div>
+
+                              <div className="text-xs font-mono text-slate-500 pt-0.5 leading-tight">
+                                <div className="font-semibold text-slate-700">
+                                  {new Date(tx.created_at).toLocaleDateString([], { day: '2-digit', month: 'short' })}
+                                </div>
+                                <div className="text-[10px] text-slate-400 mt-0.5">
+                                  {new Date(tx.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                                </div>
+                              </div>
+
+                              <div className="flex items-center gap-2 pt-1">
+                                <div className="w-auto px-2 h-7 rounded bg-slate-100 border border-slate-200/50 flex items-center justify-center text-[10px] font-mono font-bold tracking-widest text-slate-500">
+                                  [{tx.customers?.location ? tx.customers.location.substring(0, 3).toUpperCase() : 'UNK'}] #{tx.customers?.seller_id}
+                                </div>
+                                <span className="font-medium text-sm text-onyx">
+                                  {tx.customers?.name ? tx.customers.name : 'Seller'}
+                                </span>
+                              </div>
+
+                              <div className="flex flex-col pt-1">
+                                <div className="text-sm font-bold text-onyx">
+                                  <span className="font-mono">{Number(tx.quantity_litres)}L</span>
+                                  <span className="text-slate-300 mx-1">|</span>
+                                  <span className="font-mono">{Number(tx.fat_percentage)}%</span>
+                                </div>
+                                <div className="text-[10px] text-slate-500 flex items-center gap-1 font-medium mt-0.5">
+                                  {tx.milk_type === 'Cow' ? 'Cow' : 'Buffalo'} • {tx.shift}
+                                </div>
+                              </div>
+
+                              <div className="flex flex-col items-end pt-1 gap-1">
+                                <div className="font-mono font-bold text-[15px] text-onyx">
+                                  ₹{Number(tx.net_payable ?? tx.total_price).toFixed(2)}
+                                </div>
+                                <div className="text-[10px] text-slate-400 font-medium font-mono">
+                                  @ ₹{Number(tx.price_per_litre).toFixed(2)}/L
+                                </div>
+                              </div>
+
+                              <div className="flex items-center justify-end pt-1">
+                                <TransactionActionCell tx={tx} onUpdate={fetchTransactions} />
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+
+                      {/* Pagination Banner */}
+                      <div className="border-t border-slate-200 p-3 flex justify-between items-center bg-white/95 backdrop-blur-sm shrink-0 sticky bottom-0 z-10">
+                        <span className="text-xs font-semibold text-slate-500">
+                          {transactionsList.length > 0
+                            ? `Showing ${(currentPage - 1) * itemsPerPage + 1}-${Math.min(currentPage * itemsPerPage, transactionsList.length)} of ${transactionsList.length}`
+                            : '0 logs'
+                          }
+                        </span>
+                        <div className="flex items-center gap-1.5">
+                          <button
+                            disabled={currentPage === 1}
+                            onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
+                            className="p-1.5 rounded-md border border-slate-200 text-slate-500 hover:text-blue-600 hover:bg-blue-50 disabled:opacity-40 transition-colors cursor-pointer">
+                            <ChevronLeft className="w-4 h-4" />
+                          </button>
+                          <div className="text-xs font-medium text-slate-600 px-2">
+                            {currentPage} <span className="text-slate-300 mx-0.5">/</span> {totalPages}
+                          </div>
+                          <button
+                            disabled={currentPage === totalPages}
+                            onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
+                            className="p-1.5 rounded-md border border-slate-200 text-slate-500 hover:text-blue-600 hover:bg-blue-50 disabled:opacity-40 transition-colors cursor-pointer">
+                            <ChevronRight className="w-4 h-4" />
+                          </button>
+                        </div>
+                      </div>
+                    </>
+                  ) : (
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4 p-3 flex-1 min-h-0 overflow-y-auto md:overflow-hidden bg-slate-50/20">
+                      {/* AM Panel */}
+                      <div className="flex flex-col min-h-[300px] md:min-h-0 md:h-full border border-slate-100 rounded-xl bg-white shadow-[0px_2px_8px_rgba(0,0,0,0.02)] overflow-hidden">
+                        <div className="px-4 py-2.5 bg-sky-50/50 border-b border-sky-100/50 flex items-center justify-between shrink-0">
+                          <div className="flex items-center gap-2">
+                            <div className="w-2 h-2 rounded-full bg-sky-500 animate-pulse"></div>
+                            <span className="text-xs font-bold text-sky-900 uppercase tracking-wider font-mono">AM Shift</span>
+                          </div>
+                          <span className="text-[10px] bg-sky-100 text-sky-800 font-bold px-2 py-0.5 rounded-full">
+                            {amTransactions.length} logs
+                          </span>
+                        </div>
+                        
+                        <div className="flex-1 overflow-y-auto p-3 flex flex-col gap-2.5 custom-scrollbar min-h-0 bg-slate-50/10">
+                          {amTransactions.length === 0 ? (
+                            <div className="flex-1 flex items-center justify-center text-slate-400 text-xs py-12 font-medium">No AM transactions recorded yet today.</div>
+                          ) : (
+                            amTransactions.map(tx => (
+                              <TransactionCard key={tx.id} tx={tx} onUpdate={fetchTransactions} />
+                            ))
+                          )}
+                        </div>
+                      </div>
+
+                      {/* PM Panel */}
+                      <div className="flex flex-col min-h-[300px] md:min-h-0 md:h-full border border-slate-100 rounded-xl bg-white shadow-[0px_2px_8px_rgba(0,0,0,0.02)] overflow-hidden">
+                        <div className="px-4 py-2.5 bg-amber-50/50 border-b border-amber-100/50 flex items-center justify-between shrink-0">
+                          <div className="flex items-center gap-2">
+                            <div className="w-2 h-2 rounded-full bg-amber-500 animate-pulse"></div>
+                            <span className="text-xs font-bold text-amber-900 uppercase tracking-wider font-mono">PM Shift</span>
+                          </div>
+                          <span className="text-[10px] bg-amber-100 text-amber-800 font-bold px-2 py-0.5 rounded-full">
+                            {pmTransactions.length} logs
+                          </span>
+                        </div>
+                        
+                        <div className="flex-1 overflow-y-auto p-3 flex flex-col gap-2.5 custom-scrollbar min-h-0 bg-slate-50/10">
+                          {pmTransactions.length === 0 ? (
+                            <div className="flex-1 flex items-center justify-center text-slate-400 text-xs py-12 font-medium">No PM transactions recorded yet today.</div>
+                          ) : (
+                            pmTransactions.map(tx => (
+                              <TransactionCard key={tx.id} tx={tx} onUpdate={fetchTransactions} />
+                            ))
+                          )}
+                        </div>
+                      </div>
                     </div>
-                  </div>
+                  )}
 
                 </div>
               </div>
             </div>
           </main>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+function TransactionCard({ tx, onUpdate }: { tx: any, onUpdate: () => void }) {
+  return (
+    <div className="p-3 bg-white hover:bg-slate-50/60 border border-slate-200/50 rounded-xl flex flex-col gap-2 shadow-sm hover:shadow transition-all duration-150 relative group">
+      {/* Row 1: Seller and Date/Time */}
+      <div className="flex items-start justify-between gap-2">
+        <div className="flex items-center gap-1.5 min-w-0">
+          <div className="shrink-0 px-1.5 py-0.5 rounded bg-slate-100 border border-slate-200/60 text-[9px] font-mono font-bold tracking-widest text-slate-500">
+            [{tx.customers?.location ? tx.customers.location.substring(0, 3).toUpperCase() : 'UNK'}] #{tx.customers?.seller_id}
+          </div>
+          <span className="font-bold text-sm text-onyx truncate">
+            {tx.customers?.name || 'Seller'}
+          </span>
+        </div>
+        <div className="text-[10px] font-mono font-semibold text-slate-400 shrink-0 text-right leading-tight">
+          <div>{new Date(tx.created_at).toLocaleDateString([], { day: '2-digit', month: 'short' })}</div>
+          <div className="text-[9px] mt-0.5">{new Date(tx.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</div>
+        </div>
+      </div>
+
+      {/* Row 2: Quantities & Pricing */}
+      <div className="flex items-center justify-between gap-2 border-t border-slate-100 pt-2 mt-0.5">
+        <div className="text-xs text-slate-500 font-medium">
+          <span className="font-bold text-onyx">{Number(tx.quantity_litres)}L</span>
+          <span className="text-slate-300 mx-1.5">|</span>
+          <span className="font-mono font-bold text-slate-600">{Number(tx.fat_percentage)}%</span>
+          <span className="text-slate-300 mx-1.5">|</span>
+          <span className={`text-[9px] px-1.5 py-0.5 rounded-md font-bold ${tx.milk_type === 'Cow' ? 'bg-orange-50 text-orange-700' : 'bg-purple-50 text-purple-700'}`}>
+            {tx.milk_type === 'Cow' ? 'COW' : 'BUF'}
+          </span>
+        </div>
+        <div className="flex items-center gap-2">
+          <div className="text-right">
+            <div className="font-mono font-bold text-sm text-onyx">
+              ₹{Number(tx.net_payable ?? tx.total_price).toFixed(2)}
+            </div>
+            <div className="text-[9px] text-slate-400 font-mono">
+              @ ₹{Number(tx.price_per_litre).toFixed(2)}/L
+            </div>
+          </div>
+          <TransactionActionCell tx={tx} onUpdate={onUpdate} />
         </div>
       </div>
     </div>

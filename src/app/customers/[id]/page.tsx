@@ -54,6 +54,7 @@ export default async function CustomerAnalyticsPage(props: {
   const currentYear = new Date().getFullYear()
 
   const supabase = await createClient()
+  await supabase.auth.getUser() // Initialize session sequentially to prevent auth lock collisions
 
   // Fire parallel queries to Supabase
   const [profileRes, aggregates, txData, locationsRes] = await Promise.all([
@@ -77,53 +78,28 @@ export default async function CustomerAnalyticsPage(props: {
   const cycleSuffix = timeframe === 'MONTH_SECOND_HALF' ? 'C2' : 'C1';
   const selectedCycle = `${cycleYear}-${String(cycleMonth).padStart(2, '0')}-${cycleSuffix}`;
 
-  // Fetch payout for this cycle
-  const payoutRes = await supabase
-    .from('payouts')
-    .select('*')
-    .eq('customer_id', id)
-    .eq('cycle_identifier', selectedCycle)
-    .limit(1)
-    .single();
-  const payout = payoutRes.data;
+  // Parallel fetch: payout, loan payment for this cycle, and active loan status
+  const [payoutRes, lpRes, activeLoanRes] = await Promise.all([
+    supabase.from('payouts').select('*').eq('customer_id', id).eq('cycle_identifier', selectedCycle).limit(1).single(),
+    supabase.from('loan_payments').select('loan_id, loans!inner(customer_id)').eq('loans.customer_id', id).eq('cycle_identifier', selectedCycle).limit(1).single(),
+    supabase.from('v_loan_current_state').select('loan_id').eq('customer_id', id).eq('status', 'ACTIVE').limit(1).single()
+  ]);
 
-  // Fetch active loan ID
-  const lpRes = await supabase
-    .from('loan_payments')
-    .select('loan_id, loans!inner(customer_id)')
-    .eq('loans.customer_id', id)
-    .eq('cycle_identifier', selectedCycle)
-    .limit(1)
-    .single();
-    
-  let targetLoanId = lpRes.data?.loan_id;
-  if (!targetLoanId) {
-    const activeLoanRes = await supabase
-      .from('v_loan_current_state')
-      .select('loan_id')
-      .eq('customer_id', id)
-      .eq('status', 'ACTIVE')
-      .limit(1)
-      .single();
-    targetLoanId = activeLoanRes.data?.loan_id;
-  }
+  const payout = payoutRes.data;
+  let targetLoanId = lpRes.data?.loan_id || activeLoanRes.data?.loan_id;
 
   let loanInfo = null;
   let allLoanPayments: any[] = [];
   let currentCyclePayment = null;
+  
   if (targetLoanId) {
-    const loanRes = await supabase
-      .from('v_loan_current_state')
-      .select('*')
-      .eq('loan_id', targetLoanId)
-      .single();
-    loanInfo = loanRes.data;
+    // Parallel fetch: loan state and loan payments
+    const [loanRes, payRes] = await Promise.all([
+      supabase.from('v_loan_current_state').select('*').eq('loan_id', targetLoanId).single(),
+      supabase.from('loan_payments').select('*').eq('loan_id', targetLoanId).order('created_at', { ascending: false })
+    ]);
     
-    const payRes = await supabase
-      .from('loan_payments')
-      .select('*')
-      .eq('loan_id', targetLoanId)
-      .order('created_at', { ascending: false });
+    loanInfo = loanRes.data;
     allLoanPayments = payRes.data || [];
     currentCyclePayment = allLoanPayments.find((p: any) => p.cycle_identifier === selectedCycle);
   }
@@ -295,7 +271,7 @@ export default async function CustomerAnalyticsPage(props: {
                       <div className="flex justify-between items-center text-amber-700 bg-amber-50 p-1.5 -mx-1.5 rounded-md mt-1">
                         <span className="text-[10px] font-bold uppercase tracking-wider">Cash Paid Extra</span>
                         <span className="text-xs font-bold">
-                          ₹{Math.max(0, (Number(currentCyclePayment.principal_paid) + Number(currentCyclePayment.interest_paid)) - Number(currentCyclePayment.available_cycle_earnings || payout?.total_earnings || 0)).toFixed(0)}
+                          ₹{Math.max(0, (Number(currentCyclePayment.principal_paid) + Number(currentCyclePayment.interest_paid)) - Number(currentCyclePayment.available_cycle_earnings || payout?.total_earnings || 0)).toFixed(2)}
                         </span>
                       </div>
                     )}
@@ -408,7 +384,7 @@ export default async function CustomerAnalyticsPage(props: {
                         </div>
                         <span className="text-slate-300 text-xs">|</span>
                         <div className="text-xs font-bold text-emerald-600">
-                          ₹{amPrice.toFixed(0)}
+                          ₹{amPrice.toFixed(2)}
                         </div>
                       </div>
                     </div>
@@ -425,7 +401,7 @@ export default async function CustomerAnalyticsPage(props: {
                         </div>
                         <span className="text-slate-300 text-xs">|</span>
                         <div className="text-xs font-bold text-emerald-600">
-                          ₹{pmPrice.toFixed(0)}
+                          ₹{pmPrice.toFixed(2)}
                         </div>
                       </div>
                     </div>

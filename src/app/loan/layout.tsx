@@ -17,7 +17,22 @@ export default function LoanLayout({
     <div className="min-h-[100dvh] bg-surface flex flex-col font-sans text-on-surface">
       <div className="flex flex-1 h-[100dvh] overflow-hidden">
         <Sidebar
-          onLogout={async () => { await supabase.auth.signOut(); router.push('/login'); }}
+          onLogout={async () => {
+            try {
+              await supabase.auth.signOut()
+            } catch (e) {
+              console.error("Signout error:", e)
+            }
+            if (typeof window !== 'undefined') {
+              for (let i = 0; i < localStorage.length; i++) {
+                const key = localStorage.key(i)
+                if (key && (key.startsWith('sb-') || key.includes('supabase'))) {
+                  localStorage.removeItem(key)
+                }
+              }
+            }
+            router.push('/login')
+          }}
         />
         {children}
       </div>

@@ -41,41 +41,62 @@ export default function PayoutTrackerPage() {
     
     // Auto-update pending payouts logic could be placed here, but user asked for "fetch and try to update whenever loaded AND manual update button"
     // Let's do the manual update button to prevent slow loads.
-    
-    const { data, error } = await supabase
-      .from('payouts')
-      .select(`
-        *,
-        customers (
-          name,
-          seller_id,
-          contact,
-          location
-        )
-      `)
-      .eq('cycle_identifier', cycle)
-      .order('net_payable', { ascending: false })
+    await supabase.auth.getUser() // Initialize session sequentially to prevent auth lock collisions
 
-    // Fetch active loans as a fallback
-    const { data: activeLoansData } = await supabase
-      .from('v_loan_current_state')
-      .select('loan_id, customer_id')
-      .eq('status', 'ACTIVE')
+    // Fetch data concurrently for 3x speedup!
+    const [
+      { data, error },
+      { data: activeLoansData },
+      { data: loanPaymentsData }
+    ] = await Promise.all([
+      supabase
+        .from('payouts')
+        .select(`
+          *,
+          customers (
+            name,
+            seller_id,
+            contact,
+            location
+          )
+        `)
+        .eq('cycle_identifier', cycle)
+        .order('net_payable', { ascending: false }),
+        
+      supabase
+        .from('v_loan_current_state')
+        .select('customer_id, loan_id')
+        .eq('status', 'ACTIVE'),
+        
+      supabase
+        .from('loan_payments')
+        .select('loan_id, loans!inner(customer_id)')
+        .eq('cycle_identifier', cycle)
+    ])
 
-    // Fetch loan payments for this cycle to map closed loans
-    const { data: loanPaymentsData } = await supabase
-      .from('loan_payments')
-      .select('loan_id, loans!inner(customer_id)')
-      .eq('cycle_identifier', cycle)
+    // Convert to Maps for O(1) lookup to fix the O(N^2) slowness
+    const loanPaymentsMap = new Map()
+    if (loanPaymentsData) {
+      loanPaymentsData.forEach((lp: any) => {
+        if (lp.loans?.customer_id) loanPaymentsMap.set(lp.loans.customer_id, lp.loan_id)
+      })
+    }
+
+    const activeLoansMap = new Map()
+    if (activeLoansData) {
+      activeLoansData.forEach((l: any) => {
+        activeLoansMap.set(l.customer_id, l.loan_id)
+      })
+    }
 
     // Combine payouts with loan IDs
     const payoutsWithLoans = (data || []).map((p: any) => {
       if (p.customer_id) {
         // 1. Did they have a payment in this cycle? (Ledger source of truth)
-        const lp = loanPaymentsData?.find((payment: any) => payment.loans?.customer_id === p.customer_id)
+        const lpId = loanPaymentsMap.get(p.customer_id)
         // 2. Do they have an active loan right now?
-        const l = activeLoansData?.find((loan: any) => loan.customer_id === p.customer_id)
-        return { ...p, active_loan_id: lp?.loan_id || l?.loan_id || null }
+        const lId = activeLoansMap.get(p.customer_id)
+        return { ...p, active_loan_id: lpId || lId || null }
       }
       return { ...p, active_loan_id: null }
     })
@@ -269,10 +290,10 @@ export default function PayoutTrackerPage() {
     doc.text(`Rs. ${Number(payout.total_earnings).toFixed(2)}`, 190, finalY + 16, { align: "right" })
     
     doc.text("Loan Deductions (Principal):", 115, finalY + 22)
-    doc.text(`- Rs. ${Number(payout.principal_paid_from_milk || 0).toFixed(2)}`, 190, finalY + 22, { align: "right" })
+    doc.text(`- Rs. ${Number(payout.loan_principal_deducted || 0).toFixed(2)}`, 190, finalY + 22, { align: "right" })
     
     doc.text("Loan Deductions (Interest):", 115, finalY + 28)
-    doc.text(`- Rs. ${Number(payout.interest_paid || 0).toFixed(2)}`, 190, finalY + 28, { align: "right" })
+    doc.text(`- Rs. ${Number(payout.loan_interest_deducted || 0).toFixed(2)}`, 190, finalY + 28, { align: "right" })
 
     doc.setDrawColor(203, 213, 225)
     doc.line(115, finalY + 32, 190, finalY + 32)
@@ -456,15 +477,19 @@ export default function PayoutTrackerPage() {
                       onChange={(e) => setCycle(e.target.value)}
                       className="bg-transparent border-none outline-none focus:ring-0 p-0 text-xl font-semibold text-onyx cursor-pointer w-full"
                     >
-                      {[...Array(8)].map((_, i) => {
-                        const d = new Date()
-                        d.setMonth(d.getMonth() - Math.floor(i/2))
-                        const y = d.getFullYear()
-                        const m = String(d.getMonth() + 1).padStart(2, '0')
+                      {[...Array(14)].map((_, i) => {
+                        const y = 2026
+                        const month = 12 - Math.floor(i/2)
+                        const m = String(month).padStart(2, '0')
                         const c = i % 2 === 0 ? 'C2' : 'C1'
                         const val = `${y}-${m}-${c}`
                         const dates = getCycleDates(val, cycleConfig)
-                        const displayDate = `${new Date(dates.startDate).toLocaleDateString('en-GB', { month: 'short', day: 'numeric' })} - ${new Date(dates.endDate).toLocaleDateString('en-GB', { month: 'short', day: 'numeric' })}`
+                        const formatSafe = (dStr: string) => {
+                          const [yyyy, mm, dd] = dStr.split('-')
+                          const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
+                          return `${parseInt(dd, 10)} ${months[parseInt(mm, 10) - 1]}`
+                        }
+                        const displayDate = `${formatSafe(dates.startDate)} - ${formatSafe(dates.endDate)}`
                         return <option key={val} value={val}>{val} ({displayDate})</option>
                       })}
                     </select>
@@ -604,10 +629,10 @@ export default function PayoutTrackerPage() {
                       <th className="px-4 py-4 border-b border-slate-100 text-center">Status</th>
                       <th className="px-4 py-4 border-b border-slate-100">Seller Entity</th>
                       <th className="px-4 py-4 border-b border-slate-100 text-right">Gross Earnings</th>
-                      <th className="px-4 py-4 border-b border-slate-100 text-right">Int. Paid</th>
-                      <th className="px-4 py-4 border-b border-slate-100 text-right">Prin. Paid</th>
+                      <th className="px-4 py-4 border-b border-slate-100 text-right">Total Int.</th>
+                      <th className="px-4 py-4 border-b border-slate-100 text-right">Total Prin.</th>
                       <th className="px-4 py-4 border-b border-slate-100 text-center">Net Payable</th>
-                      <th className="px-4 py-4 border-b border-slate-100 text-right">C/F Principal</th>
+                      <th className="px-4 py-4 border-b border-slate-100 text-right">Prin. After</th>
                       <th className="px-4 py-4 border-b border-slate-100 text-right">Receipt</th>
                     </tr>
                   </thead>

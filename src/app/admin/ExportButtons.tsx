@@ -22,10 +22,119 @@ export default function ExportButtons({ timeframe, exactDate, exactMonth, startD
       const res = await fetch(`/api/export?${queryStr}&format=json`)
       const json = await res.json()
 
-      if (!json.data || json.data.length === 0) {
+      const hasData = json.data && json.data.length > 0;
+      if (!hasData && !customerId) {
         alert('No data matches the current filters for PDF export.')
         setIsExportingPDF(false)
         return
+      }
+
+      // 1. Calculate the start and end dates (inclusive) of the selected timeframe
+      let startRangeStr = '';
+      let endRangeStr = '';
+      
+      const today = new Date();
+      const currentYear = today.getFullYear();
+      const currentMonth = today.getMonth() + 1;
+      const mmStr = String(currentMonth).padStart(2, '0');
+      
+      if (timeframe === 'TODAY') {
+        const ddStr = String(today.getDate()).padStart(2, '0');
+        startRangeStr = `${currentYear}-${mmStr}-${ddStr}`;
+        endRangeStr = startRangeStr;
+      } else if (timeframe === 'SPECIFIC_DATE' && exactDate) {
+        startRangeStr = exactDate;
+        endRangeStr = exactDate;
+      } else if (timeframe === 'SPECIFIC_MONTH' && exactMonth) {
+        const [yy, exMm] = exactMonth.split('-');
+        const lastDay = new Date(Number(yy), Number(exMm), 0).getDate();
+        startRangeStr = `${yy}-${exMm}-01`;
+        endRangeStr = `${yy}-${exMm}-${String(lastDay).padStart(2, '0')}`;
+      } else if (timeframe === 'CUSTOM_RANGE' && startDate && endDate) {
+        startRangeStr = startDate;
+        endRangeStr = endDate;
+      } else if (timeframe === 'MONTH_FIRST_HALF') {
+        const [yy, exMm] = exactMonth ? exactMonth.split('-') : [String(currentYear), mmStr];
+        startRangeStr = `${yy}-${exMm}-01`;
+        endRangeStr = `${yy}-${exMm}-15`;
+      } else if (timeframe === 'MONTH_SECOND_HALF') {
+        const [yy, exMm] = exactMonth ? exactMonth.split('-') : [String(currentYear), mmStr];
+        const lastDay = new Date(Number(yy), Number(exMm), 0).getDate();
+        startRangeStr = `${yy}-${exMm}-16`;
+        endRangeStr = `${yy}-${exMm}-${String(lastDay).padStart(2, '0')}`;
+      } else if (timeframe === 'MONTHLY') {
+        const [yy, exMm] = exactMonth ? exactMonth.split('-') : [String(currentYear), mmStr];
+        const lastDay = new Date(Number(yy), Number(exMm), 0).getDate();
+        startRangeStr = `${yy}-${exMm}-01`;
+        endRangeStr = `${yy}-${exMm}-${String(lastDay).padStart(2, '0')}`;
+      } else {
+        const ddStr = String(today.getDate()).padStart(2, '0');
+        startRangeStr = `${currentYear}-${mmStr}-${ddStr}`;
+        endRangeStr = startRangeStr;
+      }
+
+      // Timezone-safe UTC date-range array generator
+      const getDatesInRange = (startS: string, endS: string) => {
+        const dates = [];
+        const [startY, startM, startD] = startS.split('-').map(Number);
+        const [endY, endM, endD] = endS.split('-').map(Number);
+        
+        let current = new Date(Date.UTC(startY, startM - 1, startD));
+        const end = new Date(Date.UTC(endY, endM - 1, endD));
+        
+        while (current <= end) {
+          const y = current.getUTCFullYear();
+          const m = String(current.getUTCMonth() + 1).padStart(2, '0');
+          const d = String(current.getUTCDate()).padStart(2, '0');
+          dates.push(`${y}-${m}-${d}`);
+          current.setUTCDate(current.getUTCDate() + 1);
+        }
+        return dates;
+      };
+
+      // 2. Perform zero-filling logic for customers (absent rows receive zeroes)
+      let finalData = json.data || [];
+      if (customerId) {
+        const datesInRange = getDatesInRange(startRangeStr, endRangeStr);
+        const txMap: Record<string, any[]> = {};
+        finalData.forEach((tx: any) => {
+          const key = `${tx.transaction_date}_${(tx.shift === 'Morning' || tx.shift === 'AM') ? 'AM' : 'PM'}`;
+          if (!txMap[key]) {
+            txMap[key] = [];
+          }
+          txMap[key].push(tx);
+        });
+
+        const alignedData: any[] = [];
+        datesInRange.forEach(date => {
+          ['AM', 'PM'].forEach(shift => {
+            const key = `${date}_shift_${shift}`;
+            const mapKey = `${date}_${shift}`;
+            if (txMap[mapKey] && txMap[mapKey].length > 0) {
+              alignedData.push(...txMap[mapKey]);
+            } else {
+              alignedData.push({
+                id: 'placeholder-' + key,
+                transaction_date: date,
+                shift: shift,
+                milk_type: 'Cow',
+                quantity_litres: 0.00,
+                fat_percentage: 0.0,
+                price_per_litre: 0.00,
+                total_price: 0.00,
+                net_payable: 0.00,
+                created_at: new Date().toISOString(),
+                customers: json.customerInfo || {
+                  name: 'Unknown',
+                  seller_id: customerId,
+                  location: 'Unknown Location',
+                  contact: 'N/A'
+                }
+              });
+            }
+          });
+        });
+        finalData = alignedData;
       }
 
       const doc = new jsPDF()
@@ -35,9 +144,9 @@ export default function ExportButtons({ timeframe, exactDate, exactMonth, startD
       if (timeframe === 'SPECIFIC_MONTH') timeLabel = exactMonth
       if (timeframe === 'CUSTOM_RANGE') timeLabel = `${startDate} to ${endDate}`
 
-      // Calculate Aggregates
+      // Calculate Aggregates on final aligned data
       let sumVol = 0, sumCap = 0, sumDed = 0, sumNet = 0, cowVol = 0, bufVol = 0, mornVol = 0, eveVol = 0
-      json.data.forEach((tx: any) => {
+      finalData.forEach((tx: any) => {
         const v = Number(tx.quantity_litres)
         const tp = Number(tx.total_price)
         sumVol += v
@@ -46,28 +155,30 @@ export default function ExportButtons({ timeframe, exactDate, exactMonth, startD
 
         if (tx.milk_type === 'Cow') cowVol += v
         if (tx.milk_type === 'Buffalo') bufVol += v
-        if (tx.shift === 'Morning') mornVol += v
-        if (tx.shift === 'Evening') eveVol += v
+        if (tx.shift === 'Morning' || tx.shift === 'AM') mornVol += v
+        if (tx.shift === 'Evening' || tx.shift === 'PM') eveVol += v
       })
 
-      if (customerId && json.data.length > 0) {
+      if (customerId && finalData.length > 0) {
         // ==========================================
         // SELLER OFFICIAL STATEMENT (HERITAGE STYLE)
         // ==========================================
-        const sellerName = json.data[0].customers?.name || 'Unknown'
-        const sellerCode = String(json.data[0].customers?.seller_id).padStart(3, '0')
-        const sellerPhone = json.data[0].customers?.contact || 'N/A'
-        const sellerLoc = json.data[0].customers?.location || 'Unknown Location'
+        const sellerName = finalData[0].customers?.name || json.customerInfo?.name || 'Unknown'
+        const sellerCode = String(finalData[0].customers?.seller_id || json.customerInfo?.seller_id || customerId)
+        const sellerPhone = finalData[0].customers?.contact || json.customerInfo?.contact || 'N/A'
+        const sellerLoc = finalData[0].customers?.location || json.customerInfo?.location || 'Unknown Location'
 
         const pdfSettings = typeof json.pdfSettings === 'string' ? JSON.parse(json.pdfSettings) : (json.pdfSettings || {});
-        const farmName = pdfSettings.farmName || "SRI LAKSHMI DAIRY FARM - MAIN BRANCH";
-        const farmAddress = pdfSettings.farmAddress || "GSTIN: 37XXXXX1234X1ZX | Plot 42, Industrial Area";
-        const footerMsg = pdfSettings.footerMessage || "This is a computer generated receipt. Please report any discrepancies within 24 hours.";
+        const farmName = pdfSettings.farmName || "SUBBI REDDY DAIRY FARM - MAIN BRANCH";
+        const farmAddress = pdfSettings.farmAddress || "GSTIN: 37XXXXX1234X1ZX | V.V. Kottala, Andhra Pradesh";
+        const rawFooterMsg = pdfSettings.footerMessage || "This is a computer generated receipt. Thank you for your continued partnership with {$farm name}. Please report any discrepancies within 24 hours.";
+        const footerMsg = rawFooterMsg.replace("{$farm name}", farmName).replace("{$farm_name}", farmName);
 
         // Draw generic logo
         doc.setLineWidth(0.5)
         doc.rect(14, 10, 12, 12)
         doc.setFontSize(7)
+        doc.setFont("courier", "normal")
         doc.text("LOGO", 20, 17.5, { align: "center" })
 
         doc.setFont("courier", "bold")
@@ -79,45 +190,106 @@ export default function ExportButtons({ timeframe, exactDate, exactMonth, startD
         doc.text(farmAddress, 105, 20, { align: "center" })
         doc.text("Web: www.kosha.bharathreddy.space  E-mail: support@xyz.com", 105, 24, { align: "center" })
 
-        doc.text(`Payment Details From: ${startDate || exactDate || 'Start'} To: ${endDate || exactDate || 'End'}`, 105, 30, { align: "center" })
+        // Get start and end dates from filtered range
+        const monthNames = ["JANUARY", "FEBRUARY", "MARCH", "APRIL", "MAY", "JUNE", "JULY", "AUGUST", "SEPTEMBER", "OCTOBER", "NOVEMBER", "DECEMBER"];
+        const [sY, sM, sD] = startRangeStr.split('-').map(Number);
+        const [eY, eM, eD] = endRangeStr.split('-').map(Number);
+        const fromDateStr = String(sD).padStart(2, '0');
+        const toDateStr = String(eD).padStart(2, '0') + ' ' + monthNames[eM - 1] + ' ' + eY;
+        
+        doc.text(`Payment Details: FROM ${fromDateStr} TO ${toDateStr}`, 105, 30, { align: "center" })
 
         const printDate = new Date().toLocaleDateString('en-GB')
         const printTime = new Date().toLocaleTimeString('en-GB', { hour12: false })
         doc.setFontSize(8)
-        doc.text(`Printed by Admin on ${printDate} at ${printTime}`, 14, 38)
-        doc.text(`Page No : 1/1`, 196, 38, { align: "right" })
+        doc.text(`Printed by Admin on ${printDate} at ${printTime}`, 14, 35)
+        doc.text(`Page No : 1/1`, 196, 35, { align: "right" })
 
         // Divider
         doc.setLineWidth(0.5)
-        doc.setLineDashPattern([2, 2], 0)
-        doc.line(14, 40, 196, 40)
+        doc.line(14, 37, 196, 37)
 
         // Customer Details
         doc.setFontSize(9)
-        doc.text(`Route : DEFAULT     : MAIN CENTER`, 14, 44)
-        doc.text(`M C C : 0001        : ${sellerLoc.substring(0, 15).toUpperCase()}`, 14, 49)
+        doc.text(`Route : DEFAULT     : MAIN CENTER`, 14, 42)
+        doc.text(`M C C : 0001        : ${sellerLoc.toUpperCase()}`, 14, 47)
 
-        doc.text(`Rep : ${sellerCode.padEnd(8)} : ${sellerName.toUpperCase()}`, 110, 44)
-        doc.text(`Mob : ${sellerPhone}`, 110, 49)
+        doc.text(`Seller ID : ${sellerCode}`, 110, 42)
+        doc.text(`Name      : ${sellerName.toUpperCase()} | Mob: ${sellerPhone}`, 110, 47)
 
-        doc.text(`Bank: HDFC0001013 HDFC BANK LTD "MAIN BRANCH"`, 14, 55)
-        doc.text(`A/C No : 50200090801332`, 145, 55)
+        doc.line(14, 50, 196, 50)
 
-        doc.line(14, 57, 196, 57)
+        // Determine exact Loan Repayment values from JSON parameters (NO client-side re-engineering)
+        let pPaid = 0;
+        let iPaid = 0;
+        let source = 'CYCLE EARNINGS';
+
+        if (json.currentCyclePayment) {
+          pPaid = Number(json.currentCyclePayment.principal_paid);
+          iPaid = Number(json.currentCyclePayment.interest_paid);
+          source = json.currentCyclePayment.source || 'CYCLE_EARNINGS_FULL';
+        } else if (json.payout) {
+          pPaid = Number(json.payout.principal_paid_from_milk || 0);
+          iPaid = Number(json.payout.interest_paid || 0);
+          source = 'CYCLE_EARNINGS_FULL';
+        }
+
+        const totalRepaid = pPaid + iPaid;
+        const hasLoan = !!json.loanInfo;
+
+        // Dynamic Height spacing layout math to occupy exactly 100% of the page
+        const headerHeight = 52;
+        const loanHeight = hasLoan ? 24 : 0;
+        const totalsHeight = hasLoan ? (source.startsWith('CYCLE_EARNINGS') && !source.includes('AND_CASH') ? 22 : 28) : 15;
+        const footerHeight = 12;
+        const marginOffset = 10; // Bottom offset padding
+
+        const fixedSum = headerHeight + loanHeight + totalsHeight + footerHeight;
+        const budget = 297 - fixedSum - marginOffset;
+
+        const rowCount = finalData.length;
+        let targetTableHeight = budget * 0.72;
+        let rowHeight = targetTableHeight / (rowCount + 1);
+
+        // Clamp row height
+        const maxRowHeight = 9.5;
+        const minRowHeight = 4.2;
+        if (rowHeight > maxRowHeight) {
+          rowHeight = maxRowHeight;
+        } else if (rowHeight < minRowHeight) {
+          rowHeight = minRowHeight;
+        }
+
+        const actualTableHeight = rowHeight * (rowCount + 1);
+        const remainingSpace = 297 - fixedSum - actualTableHeight - marginOffset;
+        const numSpacers = hasLoan ? 3 : 2;
+        const spacerSize = Math.max(2, remainingSpace / numSpacers);
+
+        // Dynamic font size based on height
+        let tableFontSize = 8;
+        if (rowHeight >= 9.0) tableFontSize = 10;
+        else if (rowHeight >= 7.5) tableFontSize = 9.5;
+        else if (rowHeight >= 6.0) tableFontSize = 9;
+        else if (rowHeight >= 5.0) tableFontSize = 8.5;
+        else tableFontSize = 7.5;
+
+        const fontHeightMm = tableFontSize / 2.834;
+        const targetPadding = (rowHeight - fontHeightMm) / 2;
+        const tablePadding = Math.max(0.15, Math.min(2.5, targetPadding));
 
         // 4. Transactions Table (Heritage Style)
         const tableColumn = ['Date', 'Shift', 'Type', 'Qty(L)', 'Fat%', 'Rate', 'Amount']
-        const tableRows = json.data.map((tx: any) => {
+        const tableRows = finalData.map((tx: any) => {
           const tp = Number(tx.total_price)
           const qty = Number(tx.quantity_litres)
-          const fat = tx.fat_percentage ? Number(tx.fat_percentage) : 6.5 // fallback
+          const fat = tx.fat_percentage ? Number(tx.fat_percentage) : 0.0
 
           let displayShift = tx.shift;
           if (tx.shift === 'Morning' || tx.shift === 'AM') displayShift = 'AM';
           else if (tx.shift === 'Evening' || tx.shift === 'PM') displayShift = 'PM';
 
           return [
-            new Date(tx.transaction_date).toLocaleDateString('en-GB').substring(0, 5), // Just DD/MM
+            new Date(tx.transaction_date).toLocaleDateString('en-GB').substring(0, 5),
             displayShift,
             tx.milk_type === 'Buffalo' ? 'BUF' : 'COW',
             qty.toFixed(2),
@@ -127,123 +299,154 @@ export default function ExportButtons({ timeframe, exactDate, exactMonth, startD
           ]
         })
 
-        let tableFontSize = 8;
-        let tablePadding = 1;
-        if (tableRows.length >= 28) {
-          tableFontSize = 7;
-          tablePadding = 0.8;
-        }
-
         autoTable(doc, {
           head: [tableColumn],
           body: tableRows,
-          startY: 60,
+          startY: 52,
           theme: 'plain',
           styles: { font: 'courier', fontSize: tableFontSize, cellPadding: tablePadding, textColor: 20 },
           headStyles: { fontStyle: 'bold' },
           margin: { left: 14, right: 14 },
-          didDrawPage: function (data) {
-            const y = data.cursor ? data.cursor.y : 0;
-            if (y > 0) doc.line(14, y, 196, y);
-          }
         })
 
-        // Reset line dash for solid lines below if needed, or keep dashed
-        let finalY = Math.max((doc as any).lastAutoTable.finalY + 4, 100)
-        doc.line(14, finalY - 3, 196, finalY - 3)
+        let tableEndY = (doc as any).lastAutoTable.finalY;
+
+        // Double solid line below transactions table
+        doc.setLineWidth(0.5);
+        doc.line(14, tableEndY + 1, 196, tableEndY + 1);
+        doc.line(14, tableEndY + 2, 196, tableEndY + 2);
+        tableEndY = tableEndY + 3;
 
         // 5. LOAN SUMMARY (If Applicable)
-        let deductions = 0.00;
-        let actualNet = sumNet;
+        let totalsStartY = tableEndY + spacerSize;
 
-        if (json.loanInfo) {
+        if (hasLoan) {
           const lInfo = json.loanInfo;
-          let pPaid = 0;
-          let iPaid = 0;
-          let source = 'N/A';
-
-          if (json.currentCyclePayment) {
-            pPaid = Number(json.currentCyclePayment.principal_paid);
-            iPaid = Number(json.currentCyclePayment.interest_paid);
-            source = json.currentCyclePayment.payment_source || 'CYCLE EARNINGS';
-          } else if (json.payout) {
-            pPaid = Number(json.payout.loan_principal_deducted);
-            iPaid = Number(json.payout.loan_interest_deducted);
-            source = 'CYCLE EARNINGS';
-          }
-          deductions = pPaid + iPaid;
-          actualNet = sumNet - deductions;
-
-          const outst = Number(lInfo.historical_outstanding || 0);
-          const inter = Number(lInfo.historical_interest || 0);
-          const totalDebt = outst + inter;
+          const loanSummaryStartY = tableEndY + spacerSize;
 
           doc.setFont("courier", "bold")
           doc.setFontSize(9)
-          doc.text("LOAN SUMMARY", 14, finalY + 4)
+          doc.text("LOAN SUMMARY", 14, loanSummaryStartY + 4)
 
-          const loanHead = ['OUTSTANDING', 'INTEREST', 'TOTAL DEBT', 'PRIN. PAID', 'INT. PAID', 'TOTAL PAID', 'SOURCE'];
+          const outst = json.currentCyclePayment && json.currentCyclePayment.principal_before !== undefined && json.currentCyclePayment.principal_before !== null
+            ? Number(json.currentCyclePayment.principal_before)
+            : Number(lInfo.historical_outstanding || 0);
+
+          const inter = json.currentCyclePayment && json.currentCyclePayment.forecasted_interest !== undefined && json.currentCyclePayment.forecasted_interest !== null
+            ? Number(json.currentCyclePayment.forecasted_interest)
+            : Number(lInfo.historical_interest || 0);
+
+          const totalDebt = outst + inter;
+
+          const loanHead = ['BAL O/S', 'INTEREST', 'TOT DEBT', 'PRIN PAID', 'INT PAID', 'TOT PAID', 'SOURCE'];
           const loanRow = [
             `Rs. ${outst.toFixed(2)}`,
             `Rs. ${inter.toFixed(2)}`,
             `Rs. ${totalDebt.toFixed(2)}`,
             `Rs. ${pPaid.toFixed(2)}`,
             `Rs. ${iPaid.toFixed(2)}`,
-            `Rs. ${(pPaid + iPaid).toFixed(2)}`,
-            source.toUpperCase()
+            `Rs. ${totalRepaid.toFixed(2)}`,
+            source.replace(/_/g, ' ').toUpperCase()
           ];
 
           autoTable(doc, {
             head: [loanHead],
             body: [loanRow],
-            startY: finalY + 6,
+            startY: loanSummaryStartY + 6,
             theme: 'plain',
             styles: { font: 'courier', fontSize: 8, cellPadding: 1, textColor: 20 },
             headStyles: { fontStyle: 'bold' },
             margin: { left: 14, right: 14 },
-            didDrawPage: function (data) {
-              const y = data.cursor ? data.cursor.y : 0;
-              if (y > 0) doc.line(14, y, 196, y);
-            }
           })
 
-          finalY = Math.max((doc as any).lastAutoTable.finalY + 4, finalY + 20)
-          doc.line(14, finalY - 3, 196, finalY - 3)
+          let loanEndY = (doc as any).lastAutoTable.finalY;
+
+          // Double solid line below loan summary table
+          doc.setLineWidth(0.5);
+          doc.line(14, loanEndY + 1, 196, loanEndY + 1);
+          doc.line(14, loanEndY + 2, 196, loanEndY + 2);
+
+          totalsStartY = loanEndY + 3 + spacerSize;
         }
 
-        // 6. Summary Section
+        // 6. Summary Totals Section
+        let deductions = 0.00;
+        let paidFromMilk = 0.00;
+        let paidFromCash = 0.00;
+        let actualNet = sumCap;
+
+        if (hasLoan) {
+          if (source.startsWith('CYCLE_EARNINGS') && !source.includes('AND_CASH')) {
+            deductions = totalRepaid;
+            actualNet = Math.max(0, sumCap - deductions);
+          } else if (source === 'MANUAL_CASH') {
+            paidFromMilk = 0.00;
+            paidFromCash = totalRepaid;
+            actualNet = sumCap;
+          } else if (source.includes('AND_CASH')) {
+            paidFromMilk = Math.min(sumCap, totalRepaid);
+            paidFromCash = totalRepaid - paidFromMilk;
+            actualNet = sumCap - paidFromMilk;
+          }
+        }
+
         doc.setFont("courier", "bold")
         doc.setFontSize(9)
-        doc.text(`Total Qty: ${sumVol.toFixed(2)} L`, 14, finalY + 2)
-        doc.text(`(Cow: ${cowVol.toFixed(1)} L | Buf: ${bufVol.toFixed(1)} L)`, 14, finalY + 7)
 
-        doc.text(`Gross Amount :`, 120, finalY + 2)
-        doc.text(`${sumCap.toFixed(2)}`, 190, finalY + 2, { align: "right" })
+        // Left aggregates
+        doc.text(`Total Qty: ${sumVol.toFixed(2)} L`, 14, totalsStartY + 4)
+        doc.text(`(Cow: ${cowVol.toFixed(1)} L | Buf: ${bufVol.toFixed(1)} L)`, 14, totalsStartY + 9)
 
-        doc.setFont("courier", "normal")
-        doc.text(`Loan Deduction :`, 120, finalY + 7)
-        doc.text(`- Rs. ${deductions.toFixed(2)}`, 190, finalY + 7, { align: "right" })
+        // Right aggregates
+        let currentRightY = totalsStartY + 4;
+        doc.text(`Milk Earnings   :`, 115, currentRightY)
+        doc.text(`${sumCap.toFixed(2)}`, 196, currentRightY, { align: "right" })
+        currentRightY += 5;
 
-        doc.line(120, finalY + 10, 196, finalY + 10)
+        if (hasLoan) {
+          if (source.startsWith('CYCLE_EARNINGS') && !source.includes('AND_CASH')) {
+            doc.text(`Loan Deduction  :`, 115, currentRightY)
+            doc.text(`- Rs. ${deductions.toFixed(2)}`, 196, currentRightY, { align: "right" })
+            currentRightY += 5;
+          } else {
+            // MANUAL_CASH or CYCLE_EARNINGS_AND_CASH
+            doc.text(`Paid from Milk  :`, 115, currentRightY)
+            doc.text(`- Rs. ${paidFromMilk.toFixed(2)}`, 196, currentRightY, { align: "right" })
+            currentRightY += 5;
 
-        doc.setFont("courier", "bold")
-        doc.setFontSize(10)
-        doc.text(`Net Amount Payable Rs :`, 105, finalY + 16)
-        doc.text(`${actualNet.toFixed(2)}`, 190, finalY + 16, { align: "right" })
-
-        doc.line(14, finalY + 20, 196, finalY + 20)
-
-        // Disclaimer & Footer
-        let sigY = finalY + 25
-        if (sigY > 290) {
-          doc.addPage()
-          sigY = 20
+            doc.text(`Paid from Cash  :`, 115, currentRightY)
+            doc.text(`Rs. ${paidFromCash.toFixed(2)}`, 196, currentRightY, { align: "right" })
+            currentRightY += 5;
+          }
         }
 
+        // Horizontal line above Net Amount Payable
+        doc.setLineWidth(0.5);
+        doc.line(115, currentRightY - 2, 196, currentRightY - 2);
+
+        doc.setFontSize(10.5)
+        doc.setFont("courier", "bold")
+        doc.text(`Net Amount Payable :`, 105, currentRightY + 3)
+        doc.text(`${actualNet.toFixed(2)}`, 196, currentRightY + 3, { align: "right" })
+
+        const totalsEndY = currentRightY + 6;
+
+        // Dashed line below Net Amount Payable
+        doc.setLineWidth(0.5);
+        doc.line(14, totalsEndY + 2, 196, totalsEndY + 2);
+
+        // Footer & Disclaimer
+        const sigY = totalsEndY + 2 + spacerSize;
         doc.setFontSize(7)
         doc.setFont("courier", "normal")
-        doc.text(footerMsg, 105, sigY, { align: "center" })
-        doc.setLineDashPattern([], 0) // reset to solid for the rest of the app
+
+        // Split footer message to prevent overflow on either side of the page
+        const splitFooter = doc.splitTextToSize(footerMsg, 180);
+        let currentFooterY = sigY + 3;
+        splitFooter.forEach((line: string) => {
+          doc.text(line, 105, currentFooterY, { align: "center" });
+          currentFooterY += 3.5;
+        });
       } else {
         // ==========================================
         // GLOBAL ADMIN EXPORT (OFFICIAL STYLE)
@@ -398,9 +601,9 @@ export default function ExportButtons({ timeframe, exactDate, exactMonth, startD
 
       // 5. Save file uniquely
       let sellerComponent = "Global"
-      if (customerId && json.data.length > 0) {
-        const name = json.data[0].customers?.name?.replace(/\s+/g, '') || "Seller"
-        const id = String(json.data[0].customers?.seller_id).padStart(3, '0')
+      if (customerId) {
+        const name = (finalData.length > 0 ? finalData[0].customers?.name : json.customerInfo?.name)?.replace(/\s+/g, '') || "Seller"
+        const id = String(finalData.length > 0 ? finalData[0].customers?.seller_id : (json.customerInfo?.seller_id || customerId))
         sellerComponent = `${name}_${id}`
       }
 

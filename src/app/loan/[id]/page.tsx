@@ -3,7 +3,7 @@
 
 import React, { useState, useEffect } from 'react'
 import { useParams, useRouter } from 'next/navigation'
-import { ArrowLeft, Landmark, Calculator, AlertCircle, Calendar, IndianRupee, Save, Clock, History, Activity, User } from 'lucide-react'
+import { ArrowLeft, Landmark, Calculator, AlertCircle, Calendar, IndianRupee, Save, Clock, History, Activity, User, Info } from 'lucide-react'
 import Link from 'next/link'
 import TopBar from '@/components/TopBar'
 import { createClient } from '@/utils/supabase/client'
@@ -31,12 +31,19 @@ export default function LoanDetailsPage() {
   const [principalPayment, setPrincipalPayment] = useState<number | ''>('')
   const [interestPayment, setInterestPayment] = useState<number | ''>('')
   const [paymentSource, setPaymentSource] = useState('CYCLE_EARNINGS')
+  const [paymentSourceOption, setPaymentSourceOption] = useState('CYCLE_EARNINGS_FULL')
+  const [deductionMode, setDeductionMode] = useState<'FULL' | 'INTEREST_ONLY' | 'PARTIAL'>('FULL')
 
   // Edit Payment State
   const [editingPayment, setEditingPayment] = useState<any>(null)
   const [editPrin, setEditPrin] = useState<number | ''>('')
   const [editInt, setEditInt] = useState<number | ''>('')
   const [editSource, setEditSource] = useState('CYCLE_EARNINGS')
+  const [editSourceOption, setEditSourceOption] = useState('CYCLE_EARNINGS_FULL')
+  const [editDeductionMode, setEditDeductionMode] = useState<'FULL' | 'INTEREST_ONLY' | 'PARTIAL'>('FULL')
+
+  // UI State
+  const [showPaymentInfo, setShowPaymentInfo] = useState(false)
   
   // Adjust Loan State
   const [isAdjustingLoan, setIsAdjustingLoan] = useState(false)
@@ -52,7 +59,71 @@ export default function LoanDetailsPage() {
     setEditingPayment(p)
     setEditPrin(p.principal_paid)
     setEditInt(p.interest_paid)
-    setEditSource(p.source || 'CYCLE_EARNINGS')
+    
+    const sourceStr = p.source || 'CYCLE_EARNINGS_FULL';
+    
+    // Set exact UI option
+    setEditSourceOption(sourceStr);
+    
+    // Reverse map to base categories for UI logic
+    if (sourceStr.startsWith('CYCLE_EARNINGS') && !sourceStr.includes('AND_CASH')) {
+      setEditSource('CYCLE_EARNINGS');
+      setEditDeductionMode(sourceStr === 'CYCLE_EARNINGS_INT' ? 'INTEREST_ONLY' : sourceStr === 'CYCLE_EARNINGS_PARTIAL' ? 'PARTIAL' : 'FULL');
+    } else if (sourceStr.includes('AND_CASH')) {
+      setEditSource('CYCLE_EARNINGS_AND_CASH');
+      setEditDeductionMode('FULL');
+    } else {
+      setEditSource('MANUAL_CASH');
+      setEditDeductionMode('FULL');
+    }
+  }
+
+  const handlePaymentSourceOptionChange = (option: string) => {
+    setPaymentSourceOption(option);
+    if (option === 'CYCLE_EARNINGS_FULL') {
+      setPaymentSource('CYCLE_EARNINGS');
+      setDeductionMode('FULL');
+    } else if (option === 'CYCLE_EARNINGS_INT') {
+      setPaymentSource('CYCLE_EARNINGS');
+      setDeductionMode('INTEREST_ONLY');
+      setPrincipalPayment(0);
+    } else if (option === 'CYCLE_EARNINGS_PARTIAL') {
+      setPaymentSource('CYCLE_EARNINGS');
+      setDeductionMode('PARTIAL');
+      setPrincipalPayment('');
+    } else if (option === 'MANUAL_CASH') {
+      setPaymentSource('MANUAL_CASH');
+      setDeductionMode('FULL');
+      setPrincipalPayment('');
+      setInterestPayment('');
+    } else if (option === 'CYCLE_EARNINGS_AND_CASH_FULL') {
+      setPaymentSource('CYCLE_EARNINGS_AND_CASH');
+      setDeductionMode('FULL');
+      setPrincipalPayment('');
+    }
+  }
+
+  const handleEditSourceOptionChange = (option: string) => {
+    setEditSourceOption(option);
+    if (option === 'CYCLE_EARNINGS_FULL') {
+      setEditSource('CYCLE_EARNINGS');
+      setEditDeductionMode('FULL');
+    } else if (option === 'CYCLE_EARNINGS_INT') {
+      setEditSource('CYCLE_EARNINGS');
+      setEditDeductionMode('INTEREST_ONLY');
+      setEditPrin(0);
+    } else if (option === 'CYCLE_EARNINGS_PARTIAL') {
+      setEditSource('CYCLE_EARNINGS');
+      setEditDeductionMode('PARTIAL');
+      setEditPrin('');
+    } else if (option === 'MANUAL_CASH') {
+      setEditSource('MANUAL_CASH');
+      setEditDeductionMode('FULL');
+    } else if (option === 'CYCLE_EARNINGS_AND_CASH_FULL') {
+      setEditSource('CYCLE_EARNINGS_AND_CASH');
+      setEditDeductionMode('FULL');
+      setEditPrin('');
+    }
   }
 
   const savePaymentEdit = async () => {
@@ -65,7 +136,7 @@ export default function LoanDetailsPage() {
     const { error } = await supabase.from('loan_payments').update({
       principal_paid: pPaid,
       interest_paid: iPaid,
-      source: editSource
+      source: editSourceOption
     }).eq('id', editingPayment.id)
     if (!error) {
       setEditingPayment(null)
@@ -115,13 +186,21 @@ export default function LoanDetailsPage() {
 
   const fetchLoanDetails = async () => {
     setIsLoading(true)
+    setLoan(null)
+    setLiveAggregate(null)
+    setPrincipalPayment('')
+    setInterestPayment('')
+    setPaymentSource('CYCLE_EARNINGS')
     
-    // 1. Fetch Loan
-    const { data: loanData, error: loanError } = await supabase
-      .from('v_loan_current_state')
-      .select('*')
-      .eq('loan_id', loanId)
-      .single()
+    // 1. Fetch Loan & Config Concurrently
+    await supabase.auth.getUser() // Prevent Supabase auth lock collision
+    const [
+      { data: loanData, error: loanError },
+      config
+    ] = await Promise.all([
+      supabase.from('v_loan_current_state').select('*').eq('loan_id', loanId).single(),
+      fetchCycleConfig(supabase)
+    ])
       
     if (loanData) {
       loanData.id = loanData.loan_id;
@@ -133,45 +212,27 @@ export default function LoanDetailsPage() {
       setLoan(loanData)
       setInterestPayment(Number(loanData.forecasted_interest) || '')
       
-      // 2. Fetch Payments
-      const { data: paymentsData } = await supabase
-        .from('loan_payments')
-        .select('*')
-        .eq('loan_id', loanId)
-        .order('created_at', { ascending: false })
-      setPayments(paymentsData || [])
-
-      // 3. Fetch Live Aggregate for this cycle
-      const config = await fetchCycleConfig(supabase)
       setCycleConfig(config)
       const cycle = getCycle(config)
       setCurrentCycleStr(cycle)
-      
       const activeLoanCycle = loanData.active_cycle_identifier || cycle
-      
-      const { data: aggData } = await supabase
-        .from('live_cycle_aggregates')
-        .select('*')
-        .eq('customer_id', loanData.customer_id)
-        .eq('cycle_identifier', activeLoanCycle)
-        .single()
-      
+
+      // 2. Fetch Payments, Aggregates, Audits, Mods Concurrently
+      const [
+        { data: paymentsData },
+        { data: aggData },
+        { data: auditData },
+        { data: modsData }
+      ] = await Promise.all([
+        supabase.from('loan_payments').select('*').eq('loan_id', loanId).order('created_at', { ascending: false }),
+        supabase.from('live_cycle_aggregates').select('*').eq('customer_id', loanData.customer_id).eq('cycle_identifier', activeLoanCycle).maybeSingle(),
+        supabase.from('loan_state_history').select('*').eq('loan_id', loanId).order('created_at', { ascending: false }),
+        supabase.from('loan_modifications').select('*').eq('loan_id', loanId).order('sequence_no', { ascending: false })
+      ])
+
+      setPayments(paymentsData || [])
       setLiveAggregate(aggData)
-
-      // 4. Fetch Audit Logs
-      const { data: auditData } = await supabase
-        .from('loan_state_history')
-        .select('*')
-        .eq('loan_id', loanId)
-        .order('created_at', { ascending: false })
       setAuditLogs(auditData || [])
-
-      // 5. Fetch Modifications
-      const { data: modsData } = await supabase
-        .from('loan_modifications')
-        .select('*')
-        .eq('loan_id', loanId)
-        .order('sequence_no', { ascending: false })
       setModifications(modsData || [])
     }
     
@@ -188,11 +249,49 @@ export default function LoanDetailsPage() {
   useEffect(() => {
     if (cycleEarnings === 0) {
       setPaymentSource('MANUAL_CASH');
-    } else if (cycleEarnings > 0 && paymentSource === 'MANUAL_CASH') {
+      setPaymentSourceOption('MANUAL_CASH');
+    } else if (cycleEarnings > 0 && paymentSourceOption === 'MANUAL_CASH') {
       // Only auto-switch to cycle earnings if it was manual cash
       setPaymentSource('CYCLE_EARNINGS');
+      setPaymentSourceOption('CYCLE_EARNINGS_FULL');
+      setDeductionMode('FULL');
     }
   }, [cycleEarnings, loan?.active_cycle_identifier, loan?.state_version]);
+
+  // Auto-fill and auto-calculate suggested payments to avoid manual math (Record Payment)
+  useEffect(() => {
+    if (cycleEarnings > 0) {
+      if (paymentSource === 'CYCLE_EARNINGS') {
+        const defaultInterest = Number(Math.min(accruedInterest, cycleEarnings).toFixed(2));
+        const currentInterest = interestPayment !== '' ? Number(interestPayment) : defaultInterest;
+        
+        if (interestPayment === '') {
+          setInterestPayment(defaultInterest);
+        }
+        
+        if (deductionMode === 'INTEREST_ONLY') {
+          setPrincipalPayment(0);
+        } else if (deductionMode === 'PARTIAL') {
+          // Leave principal payment empty for user to fill
+          if (principalPayment === 0) setPrincipalPayment('');
+        } else {
+          const suggestedPrincipal = Number(Math.min(outstandingPrincipal, Math.max(0, cycleEarnings - currentInterest)).toFixed(2));
+          setPrincipalPayment(suggestedPrincipal || '');
+        }
+      } else if (paymentSource === 'CYCLE_EARNINGS_AND_CASH') {
+        const defaultInterest = Number(Math.min(accruedInterest, cycleEarnings).toFixed(2));
+        if (interestPayment === '') {
+          setInterestPayment(defaultInterest);
+        }
+        
+        if (principalPayment === '') {
+          const currentInterest = interestPayment !== '' ? Number(interestPayment) : defaultInterest;
+          const suggestedPrincipal = Number(Math.min(outstandingPrincipal, Math.max(0, cycleEarnings - currentInterest)).toFixed(2));
+          setPrincipalPayment(suggestedPrincipal || '');
+        }
+      }
+    }
+  }, [paymentSource, cycleEarnings, accruedInterest, deductionMode]);
 
   const pPaymentVal = Number(principalPayment) || 0;
   const iPaymentVal = Number(interestPayment) || 0;
@@ -202,8 +301,31 @@ export default function LoanDetailsPage() {
     const totalInput = pPaymentVal + iPaymentVal;
     if (cycleEarnings > 0 && totalInput > cycleEarnings && paymentSource === 'CYCLE_EARNINGS') {
       setPaymentSource('CYCLE_EARNINGS_AND_CASH');
+      setPaymentSourceOption('CYCLE_EARNINGS_AND_CASH_FULL');
     }
   }, [pPaymentVal, iPaymentVal, cycleEarnings, paymentSource]);
+
+  // Auto-fill and auto-calculate suggested payments to avoid manual math (Edit Repayment)
+  useEffect(() => {
+    const availableForEdit = Number(editingPayment?.available_cycle_earnings || cycleEarnings);
+    if (editingPayment && availableForEdit > 0 && editSource === 'CYCLE_EARNINGS') {
+      const currentInt = editInt !== '' ? Number(editInt) : Number(Math.min(accruedInterest, availableForEdit).toFixed(2));
+      if (editDeductionMode === 'INTEREST_ONLY') {
+        setEditPrin(0);
+      } else if (editDeductionMode === 'PARTIAL') {
+        if (editPrin === 0) setEditPrin('');
+      } else {
+        const suggestedPrin = Number(Math.min(outstandingPrincipal, Math.max(0, availableForEdit - currentInt)).toFixed(2));
+        setEditPrin(suggestedPrin || '');
+      }
+    } else if (editingPayment && availableForEdit > 0 && editSource === 'CYCLE_EARNINGS_AND_CASH') {
+      const currentInt = editInt !== '' ? Number(editInt) : Number(Math.min(accruedInterest, availableForEdit).toFixed(2));
+      if (editPrin === '') {
+        const suggestedPrin = Number(Math.min(outstandingPrincipal, Math.max(0, availableForEdit - currentInt)).toFixed(2));
+        setEditPrin(suggestedPrin || '');
+      }
+    }
+  }, [editSource, editingPayment, editDeductionMode, cycleEarnings, accruedInterest, outstandingPrincipal]);
 
   // Auto-switch to Mixed if amount exceeds earnings (Edit Repayment)
   useEffect(() => {
@@ -211,11 +333,35 @@ export default function LoanDetailsPage() {
     const availableForEdit = Number(editingPayment?.available_cycle_earnings || cycleEarnings);
     if (availableForEdit > 0 && totalEditInput > availableForEdit && editSource === 'CYCLE_EARNINGS') {
       setEditSource('CYCLE_EARNINGS_AND_CASH');
+      setEditSourceOption('CYCLE_EARNINGS_AND_CASH_FULL');
     }
   }, [editPrin, editInt, editingPayment, cycleEarnings, editSource]);
 
+  // Clear inputs when payment source is switched to Manual Cash (Record Form)
+  useEffect(() => {
+    if (paymentSource === 'MANUAL_CASH') {
+      setPrincipalPayment('');
+      if (interestPayment === '') {
+        setInterestPayment(Number(accruedInterest.toFixed(2)));
+      }
+    }
+  }, [paymentSource, accruedInterest, interestPayment]);
+
+  // Clear inputs when payment source is switched to Manual Cash (Edit Modal)
+  useEffect(() => {
+    if (editSource === 'MANUAL_CASH') {
+      setEditPrin('');
+      if (editInt === '') {
+        setEditInt(Number(accruedInterest.toFixed(2)));
+      }
+    }
+  }, [editSource, accruedInterest, editInt]);
+
   const isPrincipalExceeding = pPaymentVal > outstandingPrincipal;
   const isInterestExceeding = iPaymentVal > accruedInterest;
+
+  const isEditPrincipalExceeding = (Number(editPrin) || 0) > outstandingPrincipal;
+  const isEditInterestExceeding = (Number(editInt) || 0) > accruedInterest;
 
   const activeCycleStr = loan?.active_cycle_identifier || currentCycleStr
   const activeStartDate = loan?.active_cycle_start_date
@@ -239,7 +385,7 @@ export default function LoanDetailsPage() {
       loan_id: loanId,
       principal_paid: pPaid,
       interest_paid: iPaid,
-      source: paymentSource,
+      source: paymentSourceOption,
       cycle_identifier: activeCycleStr,
       available_cycle_earnings: cycleEarnings
     })
@@ -357,7 +503,7 @@ export default function LoanDetailsPage() {
               </div>
               <div>
                 <div className="text-xs font-bold text-slate-400 uppercase tracking-wider">Cycle Earnings</div>
-                <div className="text-lg font-bold text-emerald-600 font-mono">₹{cycleEarnings.toFixed(0)}</div>
+                <div className="text-lg font-bold text-emerald-600 font-mono">₹{cycleEarnings.toFixed(2)}</div>
               </div>
               <div className="flex gap-2 ml-4 mt-2 md:mt-0">
                 <button onClick={startAdjustLoan} className="px-4 py-2 bg-surface text-slate-600 border border-slate-200 rounded-lg text-xs font-semibold hover:bg-slate-100 hover:text-onyx transition-colors">
@@ -414,16 +560,58 @@ export default function LoanDetailsPage() {
             {/* Record Payment Form */}
             <div className="bg-white border border-slate-200 rounded-2xl p-6 shadow-[0px_4px_20px_rgba(0,0,0,0.03)] relative overflow-hidden">
               <div className="absolute top-0 left-0 w-full h-1 bg-indigo-500" />
-              <div className="flex flex-col md:flex-row md:items-center justify-between mb-6">
+              <div className="flex flex-col md:flex-row md:items-center justify-between mb-2">
                 <div>
-                  <h3 className="text-lg font-bold text-onyx mb-1">Record Payment</h3>
+                  <div className="flex items-center gap-2 mb-1">
+                    <h3 className="text-lg font-bold text-onyx">Record Payment</h3>
+                    <button 
+                      onClick={() => setShowPaymentInfo(!showPaymentInfo)} 
+                      className={`w-6 h-6 rounded-full flex items-center justify-center transition-colors ${showPaymentInfo ? 'bg-indigo-100 text-indigo-700' : 'bg-slate-100 text-slate-500 hover:bg-slate-200 hover:text-slate-700'}`}
+                    >
+                      <Info className="w-3.5 h-3.5" />
+                    </button>
+                  </div>
                   <p className="text-sm text-slate-500">Process a customer&apos;s payment decision towards this loan.</p>
                 </div>
                 <div className="mt-4 md:mt-0 bg-surface border border-slate-200 px-4 py-2 rounded-xl flex items-center gap-3">
                   <span className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Available Earnings</span>
                   <span className={`font-mono font-bold ${cycleEarnings > 0 ? 'text-emerald-600' : 'text-slate-500'}`}>
-                    ₹{cycleEarnings > 0 ? cycleEarnings.toFixed(0) : '0'}
+                    ₹{cycleEarnings > 0 ? cycleEarnings.toFixed(2) : '0.00'}
                   </span>
+                </div>
+              </div>
+
+              {/* Collapsible Info Panel */}
+              <div className={`grid transition-all duration-300 ease-in-out mb-6 ${showPaymentInfo ? 'grid-rows-[1fr] opacity-100' : 'grid-rows-[0fr] opacity-0'}`}>
+                <div className="overflow-hidden">
+                  <div className="bg-indigo-50 border border-indigo-100 rounded-xl p-5 mt-2 space-y-3">
+                    <p className="font-semibold text-indigo-900 text-sm mb-2">How the math works for each option:</p>
+                    
+                    <div className="bg-white rounded-lg p-3 border border-indigo-100 shadow-[0px_2px_8px_rgba(0,0,0,0.02)]">
+                      <strong className="text-indigo-900 block text-xs tracking-wide uppercase mb-1">1. Cycle Earnings (Full)</strong>
+                      <p className="text-slate-600 text-sm">We take their <strong className="text-slate-800">ENTIRE</strong> milk check for this cycle and use it to pay off the loan. First we pay the interest, and whatever is left over automatically pays down the principal. <em className="text-indigo-600 font-medium">(Zero cash changes hands)</em>.</p>
+                    </div>
+
+                    <div className="bg-white rounded-lg p-3 border border-indigo-100 shadow-[0px_2px_8px_rgba(0,0,0,0.02)]">
+                      <strong className="text-indigo-900 block text-xs tracking-wide uppercase mb-1">2. Cycle Earnings (Partial)</strong>
+                      <p className="text-slate-600 text-sm">You choose a specific amount to deduct from their milk check (e.g. taking ₹500 from a ₹2000 check). They will receive the rest of their milk money as normal.</p>
+                    </div>
+
+                    <div className="bg-white rounded-lg p-3 border border-indigo-100 shadow-[0px_2px_8px_rgba(0,0,0,0.02)]">
+                      <strong className="text-indigo-900 block text-xs tracking-wide uppercase mb-1">3. Cycle Earnings (Interest Only)</strong>
+                      <p className="text-slate-600 text-sm">We only deduct the exact Interest amount from their milk check. Their Principal (main loan balance) stays exactly the same. They get the rest of their milk money.</p>
+                    </div>
+
+                    <div className="bg-white rounded-lg p-3 border border-indigo-100 shadow-[0px_2px_8px_rgba(0,0,0,0.02)]">
+                      <strong className="text-indigo-900 block text-xs tracking-wide uppercase mb-1">4. Manual Cash Payment</strong>
+                      <p className="text-slate-600 text-sm">The farmer hands you physical <strong className="text-emerald-600">CASH</strong> right now. We do <strong className="text-slate-800">NOT</strong> touch their milk check at all. Their full milk check will be given to them later.</p>
+                    </div>
+
+                    <div className="bg-white rounded-lg p-3 border border-indigo-100 shadow-[0px_2px_8px_rgba(0,0,0,0.02)]">
+                      <strong className="text-indigo-900 block text-xs tracking-wide uppercase mb-1">5. Mixed (Full + Cash)</strong>
+                      <p className="text-slate-600 text-sm">Their milk check is too small to cover what they want to pay. So, we take their ENTIRE milk check, <strong className="text-slate-800">AND</strong> they give you extra CASH out of their pocket to make up the difference.</p>
+                    </div>
+                  </div>
                 </div>
               </div>
               
@@ -437,80 +625,180 @@ export default function LoanDetailsPage() {
                   <div className="text-xs text-slate-400">A repayment for the loan&apos;s active billing cycle ({activeCycleStr}) has already been recorded. Please edit the existing repayment below instead.</div>
                 </div>
               ) : (
-                <div className="grid grid-cols-1 md:grid-cols-4 gap-4 items-end relative pb-4 md:pb-0">
-                  {/* Source Selection */}
-                  <div className="md:col-span-1">
-                    <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">Payment Source</label>
-                    <select
-                      value={paymentSource}
-                      onChange={(e) => setPaymentSource(e.target.value)}
-                      className="w-full bg-white border border-slate-200 rounded-xl px-4 py-3.5 text-sm font-semibold text-onyx focus:ring-1 focus:border-onyx ring-onyx outline-none shadow-sm transition-all h-[52px]"
-                    >
-                      {cycleEarnings > 0 && <option value="CYCLE_EARNINGS">Cycle Earnings</option>}
-                      <option value="MANUAL_CASH">Manual Cash</option>
-                      {cycleEarnings > 0 && <option value="CYCLE_EARNINGS_AND_CASH">Mixed</option>}
-                    </select>
-                  </div>
-
-                  {/* Interest Input */}
-                  <div className="md:col-span-1 relative">
-                    <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-2 truncate">
-                      Interest <span className="text-amber-500 ml-1">(Max: ₹{accruedInterest.toFixed(0)})</span>
-                    </label>
-                    <div className="relative">
-                      <IndianRupee className="w-5 h-5 text-slate-400 absolute left-4 top-1/2 -translate-y-1/2" />
-                      <input
-                        type="number"
-                        value={interestPayment}
-                        onChange={(e) => setInterestPayment(Number(e.target.value) || '')}
-                        placeholder="0.00"
-                        className={`w-full bg-white border ${isInterestExceeding ? 'border-red-300 focus:ring-1 focus:border-red-500 ring-red-500' : 'border-slate-200 focus:ring-1 focus:border-onyx ring-onyx'} rounded-xl pl-12 pr-4 text-lg font-medium font-mono text-onyx outline-none shadow-sm transition-all h-[52px]`}
-                      />
-                    </div>
-                    {isInterestExceeding && (
-                      <div className="text-[10px] font-semibold text-red-500 absolute -bottom-4 left-0">
-                        Max allowed: ₹{accruedInterest.toLocaleString('en-IN')}
+                <div className="space-y-4">
+                  {/* Inputs Row */}
+                  <div className="grid grid-cols-1 md:grid-cols-4 gap-4 items-start">
+                    {/* Source Selection */}
+                    <div>
+                      <div className="flex flex-col gap-0.5 mb-2">
+                        <div className="text-xs font-bold text-slate-500 uppercase tracking-wider">Payment Source</div>
+                        <div className="text-[10px] font-medium text-slate-400">Select how to collect</div>
                       </div>
-                    )}
-                  </div>
-
-                  {/* Principal Input */}
-                  <div className="md:col-span-1 relative">
-                    <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-2 truncate">
-                      Principal <span className="text-red-500 ml-1">(Left: ₹{outstandingPrincipal})</span>
-                    </label>
-                    <div className="relative">
-                      <IndianRupee className="w-5 h-5 text-slate-400 absolute left-4 top-1/2 -translate-y-1/2" />
-                      <input
-                        type="number"
-                        value={principalPayment}
-                        onChange={(e) => setPrincipalPayment(Number(e.target.value) || '')}
-                        placeholder="0.00"
-                        className={`w-full bg-white border ${isPrincipalExceeding ? 'border-red-300 focus:ring-1 focus:border-red-500 ring-red-500' : 'border-slate-200 focus:ring-1 focus:border-onyx ring-onyx'} rounded-xl pl-12 pr-4 text-lg font-medium font-mono text-onyx outline-none shadow-sm transition-all h-[52px]`}
-                      />
+                      <select
+                        value={paymentSourceOption}
+                        onChange={(e) => handlePaymentSourceOptionChange(e.target.value)}
+                        className="w-full bg-white border border-slate-200 rounded-xl px-4 py-3.5 text-sm font-semibold text-onyx focus:ring-1 focus:border-onyx ring-onyx outline-none shadow-sm transition-all h-[52px]"
+                      >
+                        {cycleEarnings > 0 && <option value="CYCLE_EARNINGS_FULL">Cycle Earnings (Full)</option>}
+                        {cycleEarnings > 0 && <option value="CYCLE_EARNINGS_PARTIAL">Cycle Earnings (Partial)</option>}
+                        {cycleEarnings > 0 && <option value="CYCLE_EARNINGS_INT">Cycle Earnings (Interest Only)</option>}
+                        <option value="MANUAL_CASH">Manual Cash</option>
+                        {cycleEarnings > 0 && <option value="CYCLE_EARNINGS_AND_CASH_FULL">Mixed (Full + Cash)</option>}
+                      </select>
                     </div>
-                    {isPrincipalExceeding && (
-                      <div className="text-[10px] font-semibold text-red-500 absolute -bottom-4 left-0">
-                        Max allowed: ₹{outstandingPrincipal.toLocaleString('en-IN')}
-                      </div>
-                    )}
-                  </div>
 
-                  <div className="md:col-span-1 h-[52px] mt-4 md:mt-0">
-                    <button
-                      onClick={handleRecordPayment}
-                      disabled={isSubmitting || (!principalPayment && !interestPayment) || isPrincipalExceeding || isInterestExceeding}
-                      className="w-full h-full bg-onyx hover:bg-black disabled:bg-slate-200 disabled:text-slate-400 disabled:cursor-not-allowed text-white font-semibold rounded-xl shadow-sm transition-all flex justify-center items-center gap-2"
-                    >
-                      {isSubmitting ? (
-                        <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-white"></div>
-                      ) : (
-                        <>
-                          <Save className="w-4 h-4" /> Record Payment
-                        </>
+                    {/* Interest Input */}
+                    <div className="relative">
+                      <div className="flex flex-col gap-0.5 mb-2">
+                        <div className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Interest</div>
+                        <div className="text-[10px] font-medium text-slate-400">
+                          Accrued: <span className="font-bold text-amber-500">₹{accruedInterest.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</span>
+                        </div>
+                      </div>
+                      <div className="relative">
+                        <IndianRupee className="w-5 h-5 text-slate-400 absolute left-4 top-1/2 -translate-y-1/2" />
+                        <input
+                          type="number"
+                          value={interestPayment}
+                          onChange={(e) => setInterestPayment(Number(e.target.value) || '')}
+                          placeholder="0.00"
+                          className={`w-full bg-white border ${isInterestExceeding ? 'border-red-300 focus:ring-1 focus:border-red-500 ring-red-500' : 'border-slate-200 focus:ring-1 focus:border-onyx ring-onyx'} rounded-xl pl-12 pr-4 text-lg font-medium font-mono text-onyx outline-none shadow-sm transition-all h-[52px]`}
+                        />
+                      </div>
+                      {isInterestExceeding && (
+                        <div className="text-[10px] font-semibold text-red-500 mt-1">
+                          Max: ₹{accruedInterest.toLocaleString('en-IN')}
+                        </div>
                       )}
-                    </button>
+                    </div>
+
+                    {/* Principal Input */}
+                    <div className="relative">
+                      <div className="flex flex-col gap-0.5 mb-2">
+                        <div className="flex items-center justify-between gap-2">
+                          <div className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Principal</div>
+                          {paymentSource !== 'MANUAL_CASH' && cycleEarnings > 0 && (
+                            <span className="text-[9px] font-bold text-emerald-700 bg-emerald-50 border border-emerald-200 px-2 py-0.5 rounded whitespace-nowrap">
+                              ₹{Math.max(0, cycleEarnings - iPaymentVal).toLocaleString('en-IN', { minimumFractionDigits: 2 })} avail.
+                            </span>
+                          )}
+                        </div>
+                        <div className="text-[10px] font-medium text-slate-400">
+                          Outstanding: <span className="font-bold text-red-500">₹{outstandingPrincipal.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</span>
+                        </div>
+                      </div>
+                      <div className="relative">
+                        <IndianRupee className="w-5 h-5 text-slate-400 absolute left-4 top-1/2 -translate-y-1/2" />
+                        <input
+                          type="number"
+                          value={principalPayment}
+                          onChange={(e) => setPrincipalPayment(Number(e.target.value) || '')}
+                          readOnly={deductionMode === 'INTEREST_ONLY'}
+                          placeholder="0.00"
+                          className={`w-full bg-white border ${isPrincipalExceeding ? 'border-red-300 focus:ring-1 focus:border-red-500 ring-red-500' : 'border-slate-200 focus:ring-1 focus:border-onyx ring-onyx'} rounded-xl pl-12 pr-4 text-lg font-medium font-mono text-onyx outline-none shadow-sm transition-all h-[52px] ${deductionMode === 'INTEREST_ONLY' ? 'opacity-80 bg-slate-50 cursor-not-allowed' : ''}`}
+                        />
+                      </div>
+                      {isPrincipalExceeding && (
+                        <div className="text-[10px] font-semibold text-red-500 mt-1">
+                          Max: ₹{outstandingPrincipal.toLocaleString('en-IN')}
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Record Button */}
+                    <div className="h-[52px] mt-[30px]">
+                      <button
+                        onClick={handleRecordPayment}
+                        disabled={isSubmitting || (!principalPayment && !interestPayment) || isPrincipalExceeding || isInterestExceeding}
+                        className="w-full h-full bg-onyx hover:bg-black disabled:bg-slate-200 disabled:text-slate-400 disabled:cursor-not-allowed text-white font-semibold rounded-xl shadow-sm transition-all flex justify-center items-center gap-2"
+                      >
+                        {isSubmitting ? (
+                          <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-white"></div>
+                        ) : (
+                          <><Save className="w-4 h-4" /> Record Payment</>
+                        )}
+                      </button>
+                    </div>
                   </div>
+
+                  {/* Live Breakdown Panel — milk-based sources */}
+                  {paymentSource !== 'MANUAL_CASH' && cycleEarnings > 0 && (
+                    <div className="bg-slate-50 border border-slate-200 rounded-xl overflow-hidden">
+                      <div className="px-4 py-2.5 border-b border-slate-200 flex items-center justify-between">
+                        <span className="text-[10px] font-bold uppercase tracking-widest text-slate-500">Live Milk Deduction Breakdown</span>
+                        <span className="text-[10px] font-semibold text-slate-400">Updates in real time</span>
+                      </div>
+                      <div className="grid grid-cols-2 md:grid-cols-4 divide-y md:divide-y-0 md:divide-x divide-slate-200">
+                        <div className="px-4 py-3">
+                          <div className="text-[9px] uppercase tracking-wider font-bold text-slate-400 mb-1">Total Cycle Earnings</div>
+                          <div className="font-mono font-bold text-slate-700 text-base">₹{cycleEarnings.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</div>
+                        </div>
+                        <div className="px-4 py-3 bg-amber-50/60">
+                          <div className="text-[9px] uppercase tracking-wider font-bold text-amber-500 mb-1">— Interest from Milk</div>
+                          <div className="font-mono font-bold text-amber-600 text-base">₹{iPaymentVal.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</div>
+                        </div>
+                        <div className="px-4 py-3 bg-indigo-50/60">
+                          <div className="text-[9px] uppercase tracking-wider font-bold text-indigo-400 mb-1">— Principal from Milk</div>
+                          <div className="font-mono font-bold text-indigo-600 text-base">
+                            ₹{Math.min(pPaymentVal, Math.max(0, cycleEarnings - iPaymentVal)).toLocaleString('en-IN', { minimumFractionDigits: 2 })}
+                          </div>
+                        </div>
+                        <div className={`px-4 py-3 ${Math.max(0, cycleEarnings - iPaymentVal - pPaymentVal) > 0 ? 'bg-emerald-50/60' : 'bg-red-50/60'}`}>
+                          <div className={`text-[9px] uppercase tracking-wider font-bold mb-1 ${Math.max(0, cycleEarnings - iPaymentVal - pPaymentVal) > 0 ? 'text-emerald-500' : 'text-red-400'}`}>
+                            Remaining to Farmer
+                          </div>
+                          <div className={`font-mono font-bold text-base ${Math.max(0, cycleEarnings - iPaymentVal - pPaymentVal) > 0 ? 'text-emerald-600' : 'text-red-500'}`}>
+                            ₹{Math.max(0, cycleEarnings - iPaymentVal - pPaymentVal).toLocaleString('en-IN', { minimumFractionDigits: 2 })}
+                          </div>
+                        </div>
+                      </div>
+                      {paymentSource === 'CYCLE_EARNINGS_AND_CASH' && (pPaymentVal + iPaymentVal) > cycleEarnings && (
+                        <div className="border-t border-slate-200 bg-emerald-50 px-4 py-3 flex items-center justify-between">
+                          <div>
+                            <div className="text-[9px] uppercase tracking-wider font-bold text-emerald-600 mb-0.5">💵 Collect as Physical CASH</div>
+                            <div className="text-[10px] text-emerald-700 font-medium">Milk earnings exhausted — additional amount must be collected directly from farmer</div>
+                          </div>
+                          <div className="text-xl font-bold font-mono text-emerald-600 whitespace-nowrap ml-4">
+                            ₹{Math.max(0, pPaymentVal + iPaymentVal - cycleEarnings).toLocaleString('en-IN', { minimumFractionDigits: 2 })}
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  )}
+
+                  {/* Manual Cash Breakdown Panel */}
+                  {paymentSource === 'MANUAL_CASH' && (pPaymentVal > 0 || iPaymentVal > 0) && (
+                    <div className="bg-slate-50 border border-slate-200 rounded-xl overflow-hidden">
+                      <div className="px-4 py-2.5 border-b border-slate-200 flex items-center justify-between">
+                        <span className="text-[10px] font-bold uppercase tracking-widest text-slate-500">Cash Payment Summary</span>
+                        <span className="text-[10px] font-semibold text-slate-400">No milk deduction</span>
+                      </div>
+                      <div className="grid grid-cols-3 divide-x divide-slate-200">
+                        <div className="px-4 py-3 bg-slate-100/60">
+                          <div className="text-[9px] uppercase tracking-wider font-bold text-slate-400 mb-1">Milk Deducted</div>
+                          <div className="font-mono font-bold text-slate-400 text-base">₹0.00</div>
+                          <div className="text-[9px] text-slate-400 mt-0.5">Milk check untouched</div>
+                        </div>
+                        <div className="px-4 py-3 bg-amber-50/60">
+                          <div className="text-[9px] uppercase tracking-wider font-bold text-amber-500 mb-1">Interest (Cash)</div>
+                          <div className="font-mono font-bold text-amber-600 text-base">₹{iPaymentVal.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</div>
+                        </div>
+                        <div className="px-4 py-3 bg-indigo-50/60">
+                          <div className="text-[9px] uppercase tracking-wider font-bold text-indigo-400 mb-1">Principal (Cash)</div>
+                          <div className="font-mono font-bold text-indigo-600 text-base">₹{pPaymentVal.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</div>
+                        </div>
+                      </div>
+                      <div className="border-t border-slate-200 bg-emerald-50 px-4 py-3 flex items-center justify-between">
+                        <div>
+                          <div className="text-[9px] uppercase tracking-wider font-bold text-emerald-600 mb-0.5">💵 Total Cash to Collect from Farmer</div>
+                          <div className="text-[10px] text-emerald-700 font-medium">Farmer's full milk check will be paid to them separately as usual</div>
+                        </div>
+                        <div className="text-xl font-bold font-mono text-emerald-600 whitespace-nowrap ml-4">
+                          ₹{(pPaymentVal + iPaymentVal).toLocaleString('en-IN', { minimumFractionDigits: 2 })}
+                        </div>
+                      </div>
+                    </div>
+                  )}
                 </div>
               )}
             </div>
@@ -792,44 +1080,152 @@ export default function LoanDetailsPage() {
       </main>
 
       {/* Edit Payment Modal */}
-      {editingPayment && (
-        <div className="fixed inset-0 bg-slate-900/60 z-[9999] flex items-center justify-center p-4">
-          <div className="bg-white rounded-2xl p-6 w-full max-w-md shadow-xl border border-slate-200">
-            <div className="flex items-center justify-between mb-4">
-              <h3 className="text-lg font-bold text-onyx">Edit Repayment</h3>
-              <span className="text-xs font-bold font-mono text-indigo-600 bg-indigo-50 px-2 py-1 rounded-md border border-indigo-100">{editingPayment.cycle_identifier}</span>
-            </div>
-            <div className="space-y-4">
-              <div>
-                <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-2">Principal Paid</label>
-                <input type="number" value={editPrin} onChange={e => setEditPrin(Number(e.target.value) || '')} className="w-full bg-white border border-slate-200 rounded-xl px-4 py-3 text-sm font-medium text-onyx focus:ring-1 focus:border-onyx ring-onyx outline-none shadow-sm transition-all" />
+      {editingPayment && (() => {
+        const editAvail = Number(editingPayment?.available_cycle_earnings || cycleEarnings)
+        const ePrin = Number(editPrin) || 0
+        const eInt = Number(editInt) || 0
+        const ePrinFromMilk = Math.min(ePrin, Math.max(0, editAvail - eInt))
+        const eRemaining = Math.max(0, editAvail - eInt - ePrin)
+        const eCashNeeded = Math.max(0, ePrin + eInt - editAvail)
+        const isMilkBased = editSourceOption !== 'MANUAL_CASH'
+        const isMixed = editSourceOption === 'CYCLE_EARNINGS_AND_CASH_FULL'
+        return (
+          <div className="fixed inset-0 bg-slate-900/60 z-[9999] flex items-center justify-center p-4">
+            <div className="bg-white rounded-2xl w-full max-w-2xl shadow-xl border border-slate-200 max-h-[90vh] overflow-y-auto">
+              {/* Header */}
+              <div className="flex items-center justify-between px-6 pt-6 pb-4 border-b border-slate-100">
+                <div>
+                  <h3 className="text-lg font-bold text-onyx">Edit Repayment</h3>
+                  <p className="text-xs text-slate-400 mt-0.5">Modify the recorded payment for this cycle</p>
+                </div>
+                <span className="text-xs font-bold font-mono text-indigo-600 bg-indigo-50 px-3 py-1.5 rounded-lg border border-indigo-100">{editingPayment.cycle_identifier}</span>
               </div>
-              <div>
-                <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-2">Interest Paid</label>
-                <input type="number" value={editInt} onChange={e => setEditInt(Number(e.target.value) || '')} className="w-full bg-white border border-slate-200 rounded-xl px-4 py-3 text-sm font-medium text-onyx focus:ring-1 focus:border-onyx ring-onyx outline-none shadow-sm transition-all" />
-              </div>
-              <div>
-                <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-2">Payment Source</label>
-                <select value={editSource} onChange={e => setEditSource(e.target.value)} className="w-full bg-white border border-slate-200 rounded-xl px-4 py-3 text-sm font-medium text-onyx focus:ring-1 focus:border-onyx ring-onyx outline-none shadow-sm transition-all">
-                  <option value="CYCLE_EARNINGS">Payout Deduction (From Cycle Earnings)</option>
-                  <option value="MANUAL_CASH">Manual Cash Payment</option>
-                  <option value="CYCLE_EARNINGS_AND_CASH">Mixed (Earnings + Cash)</option>
-                </select>
-              </div>
-              <div className="bg-surface border border-slate-200 p-3 rounded-xl flex items-center justify-between mt-2">
-                <span className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Available Cycle Earnings</span>
-                <span className={`font-mono font-semibold ${Number(editingPayment?.available_cycle_earnings || cycleEarnings) > 0 ? 'text-onyx' : 'text-slate-400'}`}>
-                  ₹{Number(editingPayment?.available_cycle_earnings || cycleEarnings) > 0 ? Number(editingPayment?.available_cycle_earnings || cycleEarnings).toFixed(0) : '0'}
-                </span>
-              </div>
-              <div className="flex gap-3 justify-end mt-6">
-                <button onClick={() => setEditingPayment(null)} className="px-5 py-2 text-slate-600 font-semibold hover:bg-slate-100 rounded-lg transition-colors border border-transparent">Cancel</button>
-                <button onClick={savePaymentEdit} className="px-5 py-2 bg-onyx text-white font-semibold rounded-lg hover:bg-black shadow-sm transition-colors">Save Updates</button>
+
+              <div className="px-6 py-5 space-y-5">
+                {/* Inputs Row */}
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                  {/* Source */}
+                  <div>
+                    <div className="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1">Payment Source</div>
+                    <select value={editSourceOption} onChange={e => handleEditSourceOptionChange(e.target.value)} className="w-full bg-white border border-slate-200 rounded-xl px-4 py-3 text-sm font-semibold text-onyx focus:ring-1 focus:border-onyx ring-onyx outline-none shadow-sm transition-all h-[48px]">
+                      <option value="CYCLE_EARNINGS_FULL">Cycle Earnings (Full)</option>
+                      <option value="CYCLE_EARNINGS_PARTIAL">Cycle Earnings (Partial)</option>
+                      <option value="CYCLE_EARNINGS_INT">Cycle Earnings (Interest Only)</option>
+                      <option value="MANUAL_CASH">Manual Cash Payment</option>
+                      <option value="CYCLE_EARNINGS_AND_CASH_FULL">Mixed (Full + Cash)</option>
+                    </select>
+                  </div>
+                  {/* Interest */}
+                  <div>
+                    <div className="flex items-center justify-between mb-1">
+                      <div className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Interest Paid</div>
+                      <span className="text-[9px] font-bold text-amber-600 bg-amber-50 border border-amber-200 px-1.5 py-0.5 rounded">Originally: ₹{Number(editingPayment?.interest_paid || 0).toLocaleString('en-IN', { minimumFractionDigits: 2 })}</span>
+                    </div>
+                    <input type="number" value={editInt} onChange={e => setEditInt(Number(e.target.value) || '')} className="w-full bg-white border border-slate-200 focus:ring-1 focus:border-onyx ring-onyx rounded-xl px-4 py-3 text-sm font-medium font-mono text-onyx outline-none shadow-sm transition-all h-[48px]" />
+                  </div>
+                  {/* Principal */}
+                  <div>
+                    <div className="flex items-center justify-between mb-1">
+                      <div className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Principal Paid</div>
+                      {isMilkBased && editAvail > 0 && (
+                        <span className="text-[9px] font-bold text-emerald-700 bg-emerald-50 border border-emerald-200 px-1.5 py-0.5 rounded whitespace-nowrap">
+                          ₹{Math.max(0, editAvail - eInt).toLocaleString('en-IN', { minimumFractionDigits: 2 })} avail.
+                        </span>
+                      )}
+                    </div>
+                    <input type="number" value={editPrin} onChange={e => setEditPrin(Number(e.target.value) || '')} readOnly={editDeductionMode === 'INTEREST_ONLY'} className={`w-full bg-white border ${isEditPrincipalExceeding ? 'border-red-300 focus:ring-1 focus:border-red-500 ring-red-500' : 'border-slate-200 focus:ring-1 focus:border-onyx ring-onyx'} rounded-xl px-4 py-3 text-sm font-medium font-mono text-onyx outline-none shadow-sm transition-all h-[48px] ${editDeductionMode === 'INTEREST_ONLY' ? 'opacity-70 bg-slate-50 cursor-not-allowed' : ''}`} />
+                    {isEditPrincipalExceeding ? (
+                      <div className="text-[10px] font-semibold text-red-500 mt-1">Max: ₹{outstandingPrincipal.toLocaleString('en-IN')}</div>
+                    ) : (
+                      <div className="text-[9px] font-medium text-slate-400 mt-1">Outstanding: <span className="font-bold text-red-500">₹{outstandingPrincipal.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</span></div>
+                    )}
+                  </div>
+                </div>
+
+                {/* Live Breakdown — Milk-based */}
+                {isMilkBased && editAvail > 0 && (
+                  <div className="bg-slate-50 border border-slate-200 rounded-xl overflow-hidden">
+                    {/* Available Cycle Earnings Row */}
+                    <div className="px-4 py-3 border-b border-slate-200 flex items-center justify-between bg-white">
+                      <span className="text-xs font-bold text-slate-500 uppercase tracking-wider">Available Cycle Earnings</span>
+                      <span className="font-mono font-bold text-onyx text-base">₹{editAvail.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</span>
+                    </div>
+                    <div className="px-4 py-2 border-b border-slate-200 flex items-center justify-between">
+                      <span className="text-[10px] font-bold uppercase tracking-widest text-slate-500">Live Milk Deduction Breakdown</span>
+                      <span className="text-[10px] font-semibold text-slate-400">Updates in real time</span>
+                    </div>
+                    <div className="grid grid-cols-2 md:grid-cols-4 divide-y md:divide-y-0 md:divide-x divide-slate-200">
+                      <div className="px-4 py-3">
+                        <div className="text-[9px] uppercase tracking-wider font-bold text-slate-400 mb-1">Cycle Earnings</div>
+                        <div className="font-mono font-bold text-slate-700 text-base">₹{editAvail.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</div>
+                      </div>
+                      <div className="px-4 py-3 bg-amber-50/60">
+                        <div className="text-[9px] uppercase tracking-wider font-bold text-amber-500 mb-1">— Interest from Milk</div>
+                        <div className="font-mono font-bold text-amber-600 text-base">₹{eInt.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</div>
+                      </div>
+                      <div className="px-4 py-3 bg-indigo-50/60">
+                        <div className="text-[9px] uppercase tracking-wider font-bold text-indigo-400 mb-1">— Principal from Milk</div>
+                        <div className="font-mono font-bold text-indigo-600 text-base">₹{ePrinFromMilk.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</div>
+                      </div>
+                      <div className={`px-4 py-3 ${eRemaining > 0 ? 'bg-emerald-50/60' : 'bg-red-50/60'}`}>
+                        <div className={`text-[9px] uppercase tracking-wider font-bold mb-1 ${eRemaining > 0 ? 'text-emerald-500' : 'text-red-400'}`}>Remaining to Farmer</div>
+                        <div className={`font-mono font-bold text-base ${eRemaining > 0 ? 'text-emerald-600' : 'text-red-500'}`}>₹{eRemaining.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</div>
+                      </div>
+                    </div>
+                    {isMixed && eCashNeeded > 0 && (
+                      <div className="border-t border-slate-200 bg-emerald-50 px-4 py-3 flex items-center justify-between">
+                        <div>
+                          <div className="text-[9px] uppercase tracking-wider font-bold text-emerald-600 mb-0.5">💵 Collect as Physical CASH</div>
+                          <div className="text-[10px] text-emerald-700 font-medium">Milk earnings exhausted — additional amount must be collected directly from farmer</div>
+                        </div>
+                        <div className="text-xl font-bold font-mono text-emerald-600 whitespace-nowrap ml-4">₹{eCashNeeded.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</div>
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                {/* Manual Cash Summary */}
+                {!isMilkBased && (ePrin > 0 || eInt > 0) && (
+                  <div className="bg-slate-50 border border-slate-200 rounded-xl overflow-hidden">
+                    <div className="px-4 py-2.5 border-b border-slate-200 flex items-center justify-between">
+                      <span className="text-[10px] font-bold uppercase tracking-widest text-slate-500">Cash Payment Summary</span>
+                      <span className="text-[10px] font-semibold text-slate-400">No milk deduction</span>
+                    </div>
+                    <div className="grid grid-cols-3 divide-x divide-slate-200">
+                      <div className="px-4 py-3 bg-slate-100/60">
+                        <div className="text-[9px] uppercase tracking-wider font-bold text-slate-400 mb-1">Milk Deducted</div>
+                        <div className="font-mono font-bold text-slate-400 text-base">₹0.00</div>
+                        <div className="text-[9px] text-slate-400 mt-0.5">Milk check untouched</div>
+                      </div>
+                      <div className="px-4 py-3 bg-amber-50/60">
+                        <div className="text-[9px] uppercase tracking-wider font-bold text-amber-500 mb-1">Interest (Cash)</div>
+                        <div className="font-mono font-bold text-amber-600 text-base">₹{eInt.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</div>
+                      </div>
+                      <div className="px-4 py-3 bg-indigo-50/60">
+                        <div className="text-[9px] uppercase tracking-wider font-bold text-indigo-400 mb-1">Principal (Cash)</div>
+                        <div className="font-mono font-bold text-indigo-600 text-base">₹{ePrin.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</div>
+                      </div>
+                    </div>
+                    <div className="border-t border-slate-200 bg-emerald-50 px-4 py-3 flex items-center justify-between">
+                      <div>
+                        <div className="text-[9px] uppercase tracking-wider font-bold text-emerald-600 mb-0.5">💵 Total Cash to Collect from Farmer</div>
+                        <div className="text-[10px] text-emerald-700 font-medium">Farmer's full milk check will be paid to them separately as usual</div>
+                      </div>
+                      <div className="text-xl font-bold font-mono text-emerald-600 whitespace-nowrap ml-4">₹{(ePrin + eInt).toLocaleString('en-IN', { minimumFractionDigits: 2 })}</div>
+                    </div>
+                  </div>
+                )}
+
+                {/* Actions */}
+                <div className="flex gap-3 justify-end pt-2 border-t border-slate-100">
+                  <button onClick={() => setEditingPayment(null)} className="px-5 py-2.5 text-slate-600 font-semibold hover:bg-slate-100 rounded-xl transition-colors border border-slate-200">Cancel</button>
+                  <button onClick={savePaymentEdit} disabled={isEditPrincipalExceeding} className="px-5 py-2.5 bg-onyx text-white font-semibold rounded-xl hover:bg-black disabled:bg-slate-200 disabled:text-slate-400 disabled:cursor-not-allowed shadow-sm transition-colors">Save Updates</button>
+                </div>
               </div>
             </div>
           </div>
-        </div>
-      )}
+        )
+      })()}
 
       {/* Adjust Loan Modal */}
       {isAdjustingLoan && (

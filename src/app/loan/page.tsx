@@ -19,33 +19,37 @@ export default function LoanManagementPage() {
 
   const fetchLoans = async () => {
     setIsLoading(true)
-    const { data, error } = await supabase
-      .from('v_loan_current_state')
-      .select('*')
-      .order('created_at', { ascending: false })
+    try {
+      const { data, error } = await supabase
+        .from('v_loan_current_state')
+        .select('*')
+        .order('created_at', { ascending: false })
 
-    if (error) {
-      console.error('Error fetching loans:', error)
-    } else {
-      const mappedData = (data || []).map((d: any) => ({ 
-        ...d, 
-        id: d.loan_id, 
-        principal_amount: d.current_sanctioned_amount, 
-        interest_rate_rupees: d.current_interest_rate,
-        customers: {
-          name: d.customer_name,
-          seller_id: d.customer_seller_id,
-          location: d.customer_location
-        }
-      }))
-      setLoans(mappedData)
+      if (error) {
+        console.error('Error fetching loans:', error)
+      } else {
+        const mappedData = (data || []).map((d: any) => ({ 
+          ...d, 
+          id: d.loan_id, 
+          principal_amount: d.current_sanctioned_amount, 
+          interest_rate_rupees: d.current_interest_rate,
+          customers: {
+            name: d.customer_name,
+            seller_id: d.customer_seller_id,
+            location: d.customer_location
+          }
+        }))
+        setLoans(mappedData)
+      }
+      
+      const config = await fetchCycleConfig(supabase)
+      setCycleConfig(config)
+      setCurrentCycleStr(getCurrentCycle(config))
+    } catch (err) {
+      console.error("Error in fetchLoans:", err)
+    } finally {
+      setIsLoading(false)
     }
-    
-    const config = await fetchCycleConfig(supabase)
-    setCycleConfig(config)
-    setCurrentCycleStr(getCurrentCycle(config))
-    
-    setIsLoading(false)
   }
 
   useEffect(() => {

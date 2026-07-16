@@ -15,6 +15,7 @@ export default function CustomersDirectory() {
   const [customers, setCustomers] = useState<any[]>([])
   const [search, setSearch] = useState('')
   const [selectedLocations, setSelectedLocations] = useState<string[]>([])
+  const [isLocationMenuOpen, setIsLocationMenuOpen] = useState(false)
   const [loading, setLoading] = useState(true)
 
   const [supabase] = useState(() => createClient())
@@ -110,7 +111,22 @@ export default function CustomersDirectory() {
       <div className="flex flex-1 h-[100dvh] overflow-hidden">
         {/* Sidebar */}
         <Sidebar
-          onLogout={async () => { await supabase.auth.signOut(); router.push('/login'); }}
+          onLogout={async () => {
+            try {
+              await supabase.auth.signOut()
+            } catch (e) {
+              console.error("Signout error:", e)
+            }
+            if (typeof window !== 'undefined') {
+              for (let i = 0; i < localStorage.length; i++) {
+                const key = localStorage.key(i)
+                if (key && (key.startsWith('sb-') || key.includes('supabase'))) {
+                  localStorage.removeItem(key)
+                }
+              }
+            }
+            router.push('/login')
+          }}
         />
 
         <div className="flex-1 flex flex-col h-full overflow-hidden relative">
@@ -137,31 +153,40 @@ export default function CustomersDirectory() {
                 </div>
                 <div className="flex items-center gap-3 w-full sm:w-auto">
                   {/* Location Filter Dropdown */}
-                  <div className="relative group">
-                    <button className="flex items-center gap-2 bg-white/80 backdrop-blur-xl border-2 border-slate-200 rounded-lg px-4 py-3 text-sm font-bold text-slate-500 hover:border-onyx transition-all shadow-sm">
+                  <div className="relative z-50">
+                    <button 
+                      onClick={() => setIsLocationMenuOpen(!isLocationMenuOpen)}
+                      className="flex items-center gap-2 bg-white/80 backdrop-blur-xl border-2 border-slate-200 rounded-lg px-4 py-3 text-sm font-bold text-slate-500 hover:border-onyx transition-all shadow-sm"
+                    >
                       <Filter className="w-4 h-4" />
                       {selectedLocations.length === 0 ? 'All Books' : `${selectedLocations.length} Books`}
                     </button>
-                    <div className="absolute right-0 top-full mt-2 w-56 bg-white border border-slate-200 rounded-xl shadow-[0px_10px_30px_rgba(0,0,0,0.05)] opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all z-50 p-2 flex flex-col gap-1 max-h-64 overflow-y-auto custom-scrollbar">
-                      <label className="flex items-center gap-3 px-3 py-2 hover:bg-slate-50 rounded-lg cursor-pointer transition-colors">
-                        <input type="checkbox" checked={selectedLocations.length === 0} onChange={() => setSelectedLocations([])} className="rounded text-sky-500 focus:ring-sky-500 w-4 h-4" />
-                        <span className="text-sm font-bold text-slate-700">All Locations</span>
-                      </label>
-                      <div className="h-px bg-slate-100 my-1 mx-2"></div>
-                      {uniqueLocations.map(loc => (
-                        <label key={loc} className="flex items-center gap-3 px-3 py-2 hover:bg-slate-50 rounded-lg cursor-pointer transition-colors">
-                          <input type="checkbox" 
-                            checked={selectedLocations.includes(loc)} 
-                            onChange={(e) => {
-                              if (e.target.checked) setSelectedLocations([...selectedLocations, loc])
-                              else setSelectedLocations(selectedLocations.filter(l => l !== loc))
-                            }} 
-                            className="rounded text-sky-500 focus:ring-sky-500 w-4 h-4" 
-                          />
-                          <span className="text-sm font-bold text-slate-600 truncate">{loc}</span>
-                        </label>
-                      ))}
-                    </div>
+                    {isLocationMenuOpen && (
+                      <>
+                        <div className="fixed inset-0 z-40" onClick={() => setIsLocationMenuOpen(false)}></div>
+                        <div className="absolute right-0 top-full mt-2 w-56 bg-white border border-slate-200 rounded-xl shadow-[0px_10px_30px_rgba(0,0,0,0.05)] transition-all z-50 p-2 flex flex-col gap-1 max-h-64 overflow-y-auto custom-scrollbar">
+                          <label className="flex items-center gap-3 px-3 py-2 hover:bg-slate-50 rounded-lg cursor-pointer transition-colors">
+                            <input type="checkbox" checked={selectedLocations.length === 0} onChange={() => setSelectedLocations([])} className="rounded text-sky-500 focus:ring-sky-500 w-4 h-4" />
+                            <span className="text-sm font-bold text-slate-700">All Books</span>
+                          </label>
+                          <div className="h-px bg-slate-100 my-1 mx-2"></div>
+
+                          {uniqueLocations.map(loc => (
+                            <label key={loc} className="flex items-center gap-3 px-3 py-2 hover:bg-slate-50 rounded-lg cursor-pointer transition-colors">
+                              <input type="checkbox" 
+                                checked={selectedLocations.includes(loc)} 
+                                onChange={(e) => {
+                                  if (e.target.checked) setSelectedLocations([...selectedLocations, loc])
+                                  else setSelectedLocations(selectedLocations.filter(l => l !== loc))
+                                }} 
+                                className="rounded text-sky-500 focus:ring-sky-500 w-4 h-4" 
+                              />
+                              <span className="text-sm font-bold text-slate-600 truncate">{loc}</span>
+                            </label>
+                          ))}
+                        </div>
+                      </>
+                    )}
                   </div>
 
                   {/* Search Bar */}
