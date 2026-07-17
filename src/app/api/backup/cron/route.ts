@@ -56,30 +56,17 @@ async function handleCron(request: Request) {
       const executed: string[] = []
       const skipped: string[] = []
 
-      for (const freq of ['Daily', 'Weekly', 'Monthly'] as const) {
+      for (const freq of ['Daily'] as const) {
         const freqConfig = config.configs?.[freq]
         if (!freqConfig || !freqConfig.enabled) {
           skipped.push(`${freq} (Disabled)`)
           continue
         }
 
-        // Time window check (+/- 35 mins of configured local time)
-        const now = new Date()
-        const options = { timeZone: 'Asia/Kolkata', hour: '2-digit', minute: '2-digit', hour12: false } as const
-        const currentLocalTimeStr = now.toLocaleTimeString('en-US', options)
-        const [currHr, currMin] = currentLocalTimeStr.split(':').map(Number)
-        const [cfgHr, cfgMin] = freqConfig.exportTime.split(':').map(Number)
 
-        const currTotalMinutes = currHr * 60 + currMin
-        const cfgTotalMinutes = cfgHr * 60 + cfgMin
-        const diff = Math.abs(currTotalMinutes - cfgTotalMinutes)
-
-        if (diff > 35) {
-          skipped.push(`${freq} (Time not matched. Config: ${freqConfig.exportTime}, Local: ${currentLocalTimeStr})`)
-          continue
-        }
 
         // Date / duplicate checks
+        const now = new Date()
         const todayStr = now.toISOString().split('T')[0]
         const lastStatus = config.lastBackupStatuses?.[freq] || ''
         
